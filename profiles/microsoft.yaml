@@ -1,0 +1,44 @@
+name: "microsoft-update"
+description: "Mimics Windows Update traffic - ideal for enterprise environments"
+
+http:
+  user_agent: "Windows-Update-Agent/10.0.19041.1 Client-Protocol/1.40"
+  
+  headers:
+    Accept: "*/*"
+    Accept-Encoding: "gzip, deflate, br"
+    Connection: "keep-alive"
+    
+  get:
+    uri:
+      - "/v9/windowsupdate/redir/wuredir.cab"
+      - "/v9/windowsupdate/selfupdate/WSUS3.0/x64/UpdateServices.cab"
+      - "/msdownload/update/v3/static/trustedr/en/authrootstl.cab"
+      - "/msdownload/update/v3/static/trustedr/en/disallowedcertstl.cab"
+    headers:
+      Host: "update.microsoft.com"
+    transform:
+      encode: "base64"
+      
+  post:
+    uri:
+      - "/v9/windowsupdate/clientwebservice/client.asmx"
+      - "/v6/windowsupdate/dsds/dsds.asmx"
+      - "/reportingwebservice/reportingwebservice.asmx"
+    headers:
+      Content-Type: "application/soap+xml; charset=utf-8"
+      Host: "update.microsoft.com"
+      SOAPAction: "\"http://www.microsoft.com/SoftwareDistribution/Server/ClientWebService/SyncUpdates\""
+    transform:
+      encode: "base64"
+      prepend: '<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"><soap:Body><SyncUpdates><cookie>'
+      append: '</cookie></SyncUpdates></soap:Body></soap:Envelope>'
+
+timing:
+  sleep: 120
+  jitter: 40
+  max_retry: 5
+
+ssl:
+  certificate: "certs/microsoft.pem"
+  verify: false
