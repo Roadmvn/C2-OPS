@@ -27,7 +27,8 @@ BUILD_DIR = build
 BIN_DIR = bin
 
 # Fichiers sources
-CORE_SRC = $(SRC_DIR)/core/config.c \
+CORE_SRC = $(SRC_DIR)/main.c \
+           $(SRC_DIR)/core/config.c \
            $(SRC_DIR)/core/demon.c
 
 CRYPTO_SRC = $(SRC_DIR)/crypto/aes.c \

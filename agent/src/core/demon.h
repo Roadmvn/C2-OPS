@@ -75,4 +75,10 @@ void demon_shutdown(void);
  */
 void demon_cleanup(void);
 
+/*
+ * Point d'entrée principal de l'agent.
+ * Appelé depuis main() ou DllMain.
+ */
+int demon_main(void);
+
 #endif /* DEMON_H */

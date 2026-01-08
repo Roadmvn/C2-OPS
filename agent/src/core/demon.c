@@ -476,12 +476,11 @@ void demon_cleanup(void) {
 }
 
 /* ============================================================================
- * Point d'entrée du programme
+ * Point d'entrée principal - appelé depuis main.c
  * ============================================================================
  */
 
-#ifdef BUILD_EXE
-int main(void) {
+int demon_main(void) {
   int status = demon_init();
   if (status != STATUS_SUCCESS) {
     return status;
@@ -493,33 +492,3 @@ int main(void) {
 
   return status;
 }
-#endif
-
-#ifdef BUILD_DLL
-BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
-  UNUSED(hinstDLL);
-  UNUSED(lpvReserved);
-
-  switch (fdwReason) {
-  case DLL_PROCESS_ATTACH:
-    /* Lance l'agent dans un nouveau thread pour pas bloquer */
-    CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)main, NULL, 0, NULL);
-    break;
-  case DLL_PROCESS_DETACH:
-    demon_shutdown();
-    demon_cleanup();
-    break;
-  }
-
-  return TRUE;
-}
-
-int main(void) {
-  int status = demon_init();
-  if (status != STATUS_SUCCESS) {
-    return status;
-  }
-
-  return demon_run();
-}
-#endif
