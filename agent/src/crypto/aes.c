@@ -3,6 +3,7 @@
  *
  * Basé sur tiny-aes-c par kokke (domaine public).
  * Adapté pour notre usage avec padding PKCS7.
+ * Ref: FIPS 197 (AES Standard)
  */
 
 #include "aes.h"
