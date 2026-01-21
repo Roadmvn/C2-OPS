@@ -69,7 +69,7 @@ int str_icmp(const char *s1, const char *s2) {
     char c1 = *s1;
     char c2 = *s2;
 
-    /* Convertit en lowercase */
+    /* Convertit en minuscule */
     if (c1 >= 'A' && c1 <= 'Z')
       c1 += 32;
     if (c2 >= 'A' && c2 <= 'Z')
