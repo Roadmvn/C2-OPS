@@ -418,3 +418,27 @@ int aes_decrypt(const uint8_t *ciphertext, size_t ciphertext_len,
 
   return STATUS_SUCCESS;
 }
+
+void aes_generate_iv(uint8_t *iv) {
+  if (!iv)
+    return;
+
+  /* Utilise les compteurs de performance pour plus d'entropie */
+  LARGE_INTEGER counter;
+  QueryPerformanceCounter(&counter);
+
+  /* Seed basé sur plusieurs sources */
+  srand(
+      (unsigned int)(counter.LowPart ^ GetTickCount() ^ GetCurrentProcessId()));
+
+  /* Génère 16 bytes aléatoires */
+  for (int i = 0; i < AES_BLOCK_SIZE; i++) {
+    iv[i] = (uint8_t)(rand() & 0xFF);
+  }
+
+  /* XOR avec le timestamp pour plus de variabilité */
+  DWORD tick = GetTickCount();
+  for (int i = 0; i < 4; i++) {
+    iv[i] ^= (uint8_t)(tick >> (i * 8));
+  }
+}

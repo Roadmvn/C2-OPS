@@ -56,4 +56,9 @@ int aes_decrypt(const uint8_t *ciphertext, size_t ciphertext_len,
                 const uint8_t *key, const uint8_t *iv, uint8_t **plaintext,
                 size_t *plaintext_len);
 
+/*
+ * Génère un IV aléatoire de 16 bytes.
+ */
+void aes_generate_iv(uint8_t *iv);
+
 #endif /* AES_H */
