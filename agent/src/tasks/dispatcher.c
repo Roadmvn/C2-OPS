@@ -4,6 +4,7 @@
 
 #include "dispatcher.h"
 #include "../core/config.h"
+#include "../core/demon.h"
 #include "../utils/memory.h"
 #include "../utils/strings.h"
 #include "handlers/file.h"
@@ -12,10 +13,6 @@
 #include "handlers/recon.h"
 #include "handlers/shell.h"
 #include "handlers/token.h"
-
-/* Référence externe vers le demon context pour le sleep */
-extern void config_set_sleep(agent_config_t *config, DWORD sleep_ms);
-extern agent_config_t *get_agent_config(void);
 
 /* ============================================================================
  * Parser JSON minimal
@@ -294,9 +291,12 @@ int dispatcher_execute(task_t *task, task_result_t *result) {
   case CMD_SLEEP: {
     DWORD new_sleep =
         (DWORD)str_to_int(task->args) * 1000; /* Convertit en ms */
-    /* On a besoin d'accéder à la config globale */
-    /* Pour l'instant on met un placeholder */
-    result->output = str_dup("Sleep time updated");
+    /* Applique le nouveau sleep time via la config globale */
+    config_set_sleep(&g_demon.config, new_sleep);
+    char msg[64];
+    snprintf(msg, sizeof(msg), "Sleep time updated to %lu seconds",
+             (unsigned long)(new_sleep / 1000));
+    result->output = str_dup(msg);
     result->output_len = result->output ? strlen(result->output) : 0;
   } break;
 
