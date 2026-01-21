@@ -1,7 +1,8 @@
 /*
  * aes.go - Chiffrement AES-256-CBC
  *
- * Compatible avec l'implémentation côté agent.
+ * Compatible avec l'implémentation côté agent (C).
+ * Utilise crypto/aes de la stdlib Go.
  */
 package crypto
 
