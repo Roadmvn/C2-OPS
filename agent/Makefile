@@ -3,6 +3,7 @@
 # 
 # Target: Windows x64
 # Compiler: MinGW-w64 (cross-compilation depuis Mac/Linux)
+# Date: Janvier 2026
 # ============================================================================
 
 # Compiler
