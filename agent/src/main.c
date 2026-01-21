@@ -1,5 +1,6 @@
 /*
  * main.c - Point d'entrée de l'agent Ghost
+ * Auteur: Roadmvn
  *
  * Peut être compilé en EXE ou DLL.
  */
