@@ -3,7 +3,6 @@
  */
 
 #include "sandbox.h"
-#include "../utils/strings.h"
 
 /* Seuils pour les checks */
 #define MIN_CPU_COUNT 2       /* Moins de 2 CPUs = suspect */
@@ -129,9 +128,18 @@ bool check_vm_mac_address(void) {
 
         /* Compare avec les préfixes VM */
         for (int i = 0; VM_MAC_PREFIXES[i] != NULL; i++) {
-          /* Normalise le format (sans les :) */
-          if (strncmp(mac, VM_MAC_PREFIXES[i], 8) == 0 ||
-              strncmp(mac, VM_MAC_PREFIXES[i] + 0, 6) == 0) {
+          /* Extrait le préfixe sans les ':' pour comparaison */
+          char prefix_clean[8] = {0};
+          const char *p = VM_MAC_PREFIXES[i];
+          int j = 0;
+          while (*p && j < 6) {
+            if (*p != ':') {
+              prefix_clean[j++] = *p;
+            }
+            p++;
+          }
+          /* Compare les 6 premiers caractères (3 octets MAC) */
+          if (strncmp(mac, prefix_clean, 6) == 0) {
             found = true;
             break;
           }
@@ -256,7 +264,7 @@ bool check_user_interaction(void) {
   lii.cbSize = sizeof(lii);
 
   if (GetLastInputInfo(&lii)) {
-    DWORD idle_time = GetTickCount() - lii.dwTime;
+    ULONGLONG idle_time = GetTickCount64() - (ULONGLONG)lii.dwTime;
     /* Si aucune input depuis plus de 10 minutes, suspect */
     if (idle_time > 10 * 60 * 1000) {
       return true;
