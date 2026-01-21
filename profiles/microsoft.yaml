@@ -35,7 +35,7 @@ http:
       append: '</cookie></SyncUpdates></soap:Body></soap:Envelope>'
 
 timing:
-  sleep: 120
+  sleep: 180  # 3 minutes - plus discret
   jitter: 40
   max_retry: 5
 
