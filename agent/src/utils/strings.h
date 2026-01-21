@@ -78,4 +78,11 @@ uint32_t str_hash(const char *str);
  */
 uint32_t wstr_hash(const wchar_t *wstr);
 
+/*
+ * Échappe une string pour insertion dans du JSON.
+ * Échappe: " \ \n \r \t
+ * Le résultat doit être libéré par l'appelant.
+ */
+char *json_escape(const char *str);
+
 #endif /* STRINGS_H */

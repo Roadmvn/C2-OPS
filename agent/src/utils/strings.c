@@ -205,3 +205,51 @@ uint32_t wstr_hash(const wchar_t *wstr) {
 
   return hash;
 }
+
+char *json_escape(const char *str) {
+  if (!str)
+    return str_dup("");
+
+  /* Calcule la taille nécessaire (pire cas: tous les chars doublés) */
+  size_t len = strlen(str);
+  size_t escaped_size = len * 2 + 1;
+
+  char *result = (char *)malloc(escaped_size);
+  if (!result)
+    return NULL;
+
+  char *out = result;
+  const char *in = str;
+
+  while (*in) {
+    switch (*in) {
+    case '"':
+      *out++ = '\\';
+      *out++ = '"';
+      break;
+    case '\\':
+      *out++ = '\\';
+      *out++ = '\\';
+      break;
+    case '\n':
+      *out++ = '\\';
+      *out++ = 'n';
+      break;
+    case '\r':
+      *out++ = '\\';
+      *out++ = 'r';
+      break;
+    case '\t':
+      *out++ = '\\';
+      *out++ = 't';
+      break;
+    default:
+      *out++ = *in;
+      break;
+    }
+    in++;
+  }
+  *out = '\0';
+
+  return result;
+}
