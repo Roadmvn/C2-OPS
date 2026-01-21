@@ -1,5 +1,6 @@
 /*
- * transport.c - Implémentation du transport HTTP via WinHTTP
+ * transport.c - Communication HTTP via WinHTTP
+ * Supporte GET/POST avec HTTPS
  */
 
 #include "transport.h"
