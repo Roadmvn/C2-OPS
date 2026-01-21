@@ -1,5 +1,6 @@
 /*
- * strings.c - Implémentation des fonctions de manipulation de strings
+ * strings.c - Fonctions utilitaires pour les chaines de caracteres
+ * Inclut: concat, dup, copy, hash, conversion unicode
  */
 
 #include "strings.h"
