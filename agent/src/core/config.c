@@ -1,8 +1,6 @@
 /*
- * config.c - Implémentation de la gestion de configuration
- *
- * La configuration est stockée de façon chiffrée dans le binaire.
- * Au runtime, on la déchiffre et on la charge en mémoire.
+ * config.c - Gestion de la configuration agent
+ * Configuration chiffree XOR dans le binaire
  */
 
 #include "config.h"
