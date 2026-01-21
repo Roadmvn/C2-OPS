@@ -1,5 +1,6 @@
 /*
  * manager.go - Gestionnaire de sessions agents
+ * Thread-safe avec mutex RW
  */
 package session
 
