@@ -39,7 +39,7 @@ http:
       wrapper: '{"version":"3.6.0","payload":"%%DATA%%","timestamp":%%TIMESTAMP%%}'
 
 timing:
-  sleep: 60
+  sleep: 90  # 1min30 - plus discret
   jitter: 30
   max_retry: 3
 
