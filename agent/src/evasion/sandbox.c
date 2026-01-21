@@ -1,5 +1,6 @@
 /*
- * sandbox.c - Implémentation de la détection sandbox/VM
+ * sandbox.c - Detection sandbox et VM
+ * Techniques: MAC, registry, fichiers, resources systeme
  */
 
 #include "sandbox.h"
