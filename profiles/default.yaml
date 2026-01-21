@@ -33,7 +33,7 @@ http:
 
 timing:
   sleep: 60
-  jitter: 20
+  jitter: 25  # augmente legerement
   max_retry: 3
 
 ssl:
