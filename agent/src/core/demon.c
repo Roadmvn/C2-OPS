@@ -1,7 +1,8 @@
 /*
- * demon.c - Implémentation du coeur de l'agent
+ * demon.c - Coeur de l'agent Ghost
+ * Auteur: Roadmvn
  *
- * C'est ici que tout se passe : init, boucle principale, communication.
+ * Init, boucle principale, communication C2.
  */
 
 #include "demon.h"
