@@ -1,5 +1,6 @@
 /*
  * agent.go - Représentation d'un agent connecté
+ * Gestion du statut et des infos de connexion
  */
 package session
 
