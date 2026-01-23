@@ -111,6 +111,8 @@ typedef enum {
     CMD_SAM_DUMP,       /* Dump SAM */
     CMD_SYSTEM_DUMP,    /* Dump SYSTEM */
     CMD_REG_CREDS,      /* Credentials depuis le registre */
+    CMD_EXFIL_SEARCH,   /* Recherche fichiers sensibles */
+    CMD_EXFIL_READ,     /* Lit un fichier pour exfil */
     CMD_MAX
 } command_type_t;
 
