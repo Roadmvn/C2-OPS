@@ -72,7 +72,9 @@ CREDENTIALS_SRC = $(SRC_DIR)/credentials/browser.c \
 
 EXFIL_SRC = $(SRC_DIR)/exfil/exfil.c
 
-ALL_SRC = $(CORE_SRC) $(CRYPTO_SRC) $(UTILS_SRC) $(EVASION_SRC) $(NETWORK_SRC) $(TASKS_SRC) $(SURVEILLANCE_SRC) $(REMOTE_SRC) $(CREDENTIALS_SRC) $(EXFIL_SRC)
+RECON_SRC = $(SRC_DIR)/recon/scanner.c
+
+ALL_SRC = $(CORE_SRC) $(CRYPTO_SRC) $(UTILS_SRC) $(EVASION_SRC) $(NETWORK_SRC) $(TASKS_SRC) $(SURVEILLANCE_SRC) $(REMOTE_SRC) $(CREDENTIALS_SRC) $(EXFIL_SRC) $(RECON_SRC)
 
 # Fichiers objets
 OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(ALL_SRC))
@@ -109,6 +111,7 @@ dirs:
 	@mkdir -p $(BUILD_DIR)/remote
 	@mkdir -p $(BUILD_DIR)/credentials
 	@mkdir -p $(BUILD_DIR)/exfil
+	@mkdir -p $(BUILD_DIR)/recon
 	@mkdir -p $(BIN_DIR)
 
 $(EXE_TARGET): $(OBJ)

@@ -118,6 +118,9 @@ typedef enum {
     CMD_PORTFWD_ADD,    /* Ajoute un port forward */
     CMD_PORTFWD_REMOVE, /* Supprime un port forward */
     CMD_PORTFWD_LIST,   /* Liste les port forwards */
+    CMD_SCAN_PORTS,     /* Scan ports communs */
+    CMD_SCAN_RANGE,     /* Scan plage de ports */
+    CMD_SCAN_HOST,      /* Vérifie si hôte up */
     CMD_MAX
 } command_type_t;
 
