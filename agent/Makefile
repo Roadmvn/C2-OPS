@@ -30,7 +30,8 @@ BIN_DIR = bin
 # Fichiers sources
 CORE_SRC = $(SRC_DIR)/main.c \
            $(SRC_DIR)/core/config.c \
-           $(SRC_DIR)/core/demon.c
+           $(SRC_DIR)/core/demon.c \
+           $(SRC_DIR)/core/auth.c
 
 CRYPTO_SRC = $(SRC_DIR)/crypto/aes.c \
              $(SRC_DIR)/crypto/xor.c \
