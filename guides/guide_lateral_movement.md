@@ -19,7 +19,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    PSEXEC                                    │
+│                           PSEXEC                            │
 ├─────────────────────────────────────────────────────────────┤
 │  1. Copie un service executable via SMB (ADMIN$)           │
 │  2. Crée un service distant                                 │
@@ -86,7 +86,7 @@ Invoke-Command -ComputerName TARGET -Credential $cred -ScriptBlock {
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                 PASS-THE-HASH                                │
+│                        PASS-THE-HASH                        │
 ├─────────────────────────────────────────────────────────────┤
 │  On a le hash NTLM mais pas le password en clair           │
 │  On l'utilise directement pour s'authentifier               │
@@ -112,7 +112,7 @@ sekurlsa::pth /user:admin /domain:CORP /ntlm:HASH /run:cmd.exe
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                 PASS-THE-TICKET                              │
+│                        PASS-THE-TICKET                      │
 ├─────────────────────────────────────────────────────────────┤
 │  Utiliser un ticket Kerberos volé (.kirbi ou .ccache)       │
 │                                                              │

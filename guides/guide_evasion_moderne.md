@@ -17,7 +17,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              ÉVOLUTION DE LA DÉTECTION                       │
+│                  ÉVOLUTION DE LA DÉTECTION                  │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  1990s-2000s: SIGNATURES                                    │
@@ -56,7 +56,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              POURQUOI LE PACKING EST MORT                   │
+│                POURQUOI LE PACKING EST MORT                 │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  PROBLÈME 1: Entropy élevée                                 │
@@ -120,7 +120,7 @@ Les sandbox modernes:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              SYSCALLS DIRECTS                               │
+│                      SYSCALLS DIRECTS                       │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  Le problème: les EDR hookent ntdll.dll                     │
@@ -185,7 +185,7 @@ Faire: Utiliser des callbacks système
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              SIGNATURE DE CODE                              │
+│                      SIGNATURE DE CODE                      │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  Fichier signé = confiance accrue                           │
@@ -217,7 +217,7 @@ Modifier les métadonnées pour ressembler à un soft légitime:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              POLYMORPHISME                                  │
+│                        POLYMORPHISME                        │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  Chaque build = binaire unique                              │
@@ -281,7 +281,7 @@ Solution: Patcher EtwEventWrite pour ne rien logger
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              LOLBins                                        │
+│                           LOLBins                           │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  Au lieu d'utiliser ton propre code...                      │
@@ -360,7 +360,7 @@ C:\Windows\Microsoft.NET\Framework\v4.0.30319\msbuild.exe build.csproj
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              FILELESS ATTACKS                               │
+│                      FILELESS ATTACKS                       │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  Aucun fichier malveillant sur le disque                    │
@@ -410,7 +410,7 @@ powershell -enc JABjAD0ATgBlAHcALQBPAGIAagBlAGMAdAAuAC4ALgA=
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│           STACK ÉVASION 2024+                               │
+│                   STACK ÉVASION 2024+                       │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  COMPILATION                                                │

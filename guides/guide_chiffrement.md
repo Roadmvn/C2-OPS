@@ -18,7 +18,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              CHIFFREMENT SYMÉTRIQUE                          │
+│                   CHIFFREMENT SYMÉTRIQUE                    │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │   Même clé pour chiffrer ET déchiffrer                      │
@@ -33,7 +33,7 @@
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│             CHIFFREMENT ASYMÉTRIQUE                          │
+│                   CHIFFREMENT ASYMÉTRIQUE                   │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │   2 clés différentes: publique + privée                     │
@@ -135,7 +135,7 @@ RC4 (Rivest Cipher 4) génère un **flux pseudo-aléatoire** (keystream) à part
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         RC4                                  │
+│                            RC4                              │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  PHASE 1: KSA (Key Scheduling Algorithm)                    │
@@ -264,7 +264,7 @@ def rc4(data: bytes, key: bytes) -> bytes:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    MODES AES                                 │
+│                         MODES AES                           │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  ECB (Electronic Codebook) - À ÉVITER                       │
@@ -365,7 +365,7 @@ int aes_gcm_encrypt(unsigned char *plaintext, int plaintext_len,
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      ChaCha20                                │
+│                         ChaCha20                            │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  État initial (512 bits = 16 x 32-bit words):               │
@@ -411,7 +411,7 @@ On utilise RSA pour **échanger les clés symétriques** de manière sécurisée
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              ÉCHANGE DE CLÉS AVEC RSA                        │
+│                  ÉCHANGE DE CLÉS AVEC RSA                   │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  SERVEUR C2                           AGENT                  │
@@ -477,7 +477,7 @@ def rsa_decrypt(ciphertext: bytes, private_key_pem: bytes) -> bytes:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              STACK CRYPTO RECOMMANDÉ                         │
+│                   STACK CRYPTO RECOMMANDÉ                   │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  1. ÉCHANGE INITIAL                                         │

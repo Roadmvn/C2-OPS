@@ -92,7 +92,7 @@ sc start "WindowsUpdate"
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                 COM HIJACKING                                │
+│                        COM HIJACKING                        │
 ├─────────────────────────────────────────────────────────────┤
 │  Remplacer une DLL COM légitime par la nôtre               │
 │                                                              │
