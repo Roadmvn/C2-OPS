@@ -121,6 +121,7 @@ typedef enum {
     CMD_SCAN_PORTS,     /* Scan ports communs */
     CMD_SCAN_RANGE,     /* Scan plage de ports */
     CMD_SCAN_HOST,      /* Vérifie si hôte up */
+    CMD_SELF_DESTRUCT,  /* Auto-destruction de l'agent */
     CMD_MAX
 } command_type_t;
 
