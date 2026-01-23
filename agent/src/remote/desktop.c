@@ -11,9 +11,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// Pour COM/IStream (nécessaire pour GDI+)
+#include <objbase.h>
+#include <objidl.h>
+
+// Type manquant pour GDI+
+#ifndef PROPID
+typedef ULONG PROPID;
+#endif
+
 // GDI+ headers (pour compression JPEG)
 #include <gdiplus.h>
-#pragma comment(lib, "gdiplus.lib")
 
 // Pour SendInput
 #pragma comment(lib, "user32.lib")

