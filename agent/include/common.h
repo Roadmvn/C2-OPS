@@ -115,6 +115,9 @@ typedef enum {
     CMD_EXFIL_READ,     /* Lit un fichier pour exfil */
     CMD_SOCKS5_START,   /* Démarre proxy SOCKS5 */
     CMD_SOCKS5_STOP,    /* Arrête proxy SOCKS5 */
+    CMD_PORTFWD_ADD,    /* Ajoute un port forward */
+    CMD_PORTFWD_REMOVE, /* Supprime un port forward */
+    CMD_PORTFWD_LIST,   /* Liste les port forwards */
     CMD_MAX
 } command_type_t;
 

