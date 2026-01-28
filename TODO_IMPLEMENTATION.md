@@ -152,11 +152,21 @@ Fait:
 - [x] CLR ETW bypass (Evasion_DisableCLRETW)
 - [x] Full bypass combiné (Evasion_FullBypass)
 
+## Implémenté - Obfuscation (obfuscation.c)
+
+- [x] API hashing (DJB2, SDBM, FNV-1a, Custom)
+- [x] API resolution par hash avec cache
+- [x] String encryption (XOR, rolling XOR, multi-key)
+- [x] Stack strings (construction dynamique)
+- [x] Hashes pré-calculés pour modules/fonctions
+- [x] Control flow obfuscation (opaque predicates)
+- [x] Junk code generation
+
 ## Pas encore commencé
 
 - [ ] ROP chain avec NtContinue (très complexe)
-- [ ] API hashing dynamique
-- [ ] String encryption compile-time
+- [ ] Polymorphic code generation
+- [ ] Metamorphic engine
 
 ---
 
