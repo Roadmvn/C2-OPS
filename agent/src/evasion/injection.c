@@ -755,6 +755,7 @@ cleanup:
 /* =========================================================================
  * Module Stomping
  * Écrase une DLL légitime en mémoire avec notre payload
+ * Avantage: le code malveillant apparaît dans une region mémoire légitime
  * ========================================================================= */
 
 /*
@@ -941,6 +942,7 @@ cleanup:
 /* =========================================================================
  * Stack Spoofing
  * Masque la vraie call stack pour éviter la détection
+ * Utile contre les outils qui inspectent la call stack (EDR)
  * ========================================================================= */
 
 /*
