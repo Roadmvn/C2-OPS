@@ -171,9 +171,37 @@ Fait:
 - [x] Génération polymorphique complète
 - [x] Support x86 et x64
 
-## Complet !
+## Prochaines étapes - Exfiltration avancée
 
-L'agent C2-OPS dispose maintenant de toutes les fonctionnalités essentielles:
+### DNS Exfiltration
+- [ ] Encodage des données en sous-domaines DNS
+- [ ] Requêtes TXT/CNAME pour récupérer les données
+- [ ] Très discret - passe souvent inaperçu par les EDR
+- [ ] Lent mais fiable même dans les réseaux restrictifs
+
+### Steganography
+- [ ] Cacher les données dans des images PNG/JPEG
+- [ ] LSB (Least Significant Bit) encoding
+- [ ] Les fichiers ressemblent à des images normales
+- [ ] Bypass DLP (Data Loss Prevention)
+
+### Cloud Exfiltration
+- [ ] Upload vers services légitimes (OneDrive, Dropbox, Google Drive)
+- [ ] Utilise le trafic HTTPS normal
+- [ ] Difficile à bloquer sans casser la productivité
+- [ ] API ou WebDAV
+
+### Compression (optimisation)
+- [ ] Compression zlib/lz4 avant upload
+- [ ] Réduit la bande passante
+- [ ] Accélère les transferts
+- [ ] Moins de données = moins de temps d'exposition
+
+---
+
+## Fonctionnalités complètes
+
+L'agent C2-OPS dispose de toutes les fonctionnalités essentielles:
 - Injection (9 techniques)
 - Persistence (7 méthodes)
 - Évasion EDR (ETW, AMSI, Unhook)
