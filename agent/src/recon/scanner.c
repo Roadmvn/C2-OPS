@@ -339,9 +339,7 @@ BOOL Scanner_ScanRange(const char* target, USHORT startPort, USHORT endPort, cha
 }
 
 /*
- * Ping simple (ICMP) pour vérifier si un hôte est up.
- * Note: ICMP nécessite généralement des privilèges admin.
- * On utilise une alternative TCP (connect sur port 80/443).
+ * Check if host is up using TCP connect
  */
 BOOL Scanner_IsHostUp(const char* target, BOOL* isUp) {
     if (!target || !isUp) return FALSE;
@@ -349,7 +347,6 @@ BOOL Scanner_IsHostUp(const char* target, BOOL* isUp) {
     
     if (!InitWinsock()) return FALSE;
     
-    // Tente de se connecter sur quelques ports communs
     USHORT checkPorts[] = {80, 443, 22, 445, 0};
     
     for (int i = 0; checkPorts[i] != 0; i++) {
@@ -360,5 +357,372 @@ BOOL Scanner_IsHostUp(const char* target, BOOL* isUp) {
     }
     
     WSACleanup();
+    return TRUE;
+}
+
+/* =========================================================================
+ * Privilege Escalation Checks
+ * ========================================================================= */
+
+/* Check for dangerous privileges */
+static BOOL CheckPrivilege(HANDLE hToken, const char* privName, BOOL* hasPriv) {
+    *hasPriv = FALSE;
+    
+    LUID luid;
+    if (!LookupPrivilegeValueA(NULL, privName, &luid)) {
+        return FALSE;
+    }
+    
+    PRIVILEGE_SET privSet;
+    privSet.PrivilegeCount = 1;
+    privSet.Control = PRIVILEGE_SET_ALL_NECESSARY;
+    privSet.Privilege[0].Luid = luid;
+    privSet.Privilege[0].Attributes = 0;
+    
+    BOOL result = FALSE;
+    if (PrivilegeCheck(hToken, &privSet, &result)) {
+        *hasPriv = result;
+        return TRUE;
+    }
+    
+    return FALSE;
+}
+
+/*
+ * Check for exploitable privileges (SeImpersonate, SeAssignPrimaryToken, etc.)
+ */
+BOOL Scanner_CheckPrivileges(char** outJson) {
+    if (!outJson) return FALSE;
+    *outJson = NULL;
+    
+    HANDLE hToken = NULL;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
+        return FALSE;
+    }
+    
+    // Privileges to check
+    struct {
+        const char* name;
+        const char* exploit;
+        BOOL found;
+    } privChecks[] = {
+        {"SeImpersonatePrivilege", "Potato attacks (JuicyPotato, PrintSpoofer)", FALSE},
+        {"SeAssignPrimaryTokenPrivilege", "Token manipulation", FALSE},
+        {"SeBackupPrivilege", "Read any file (backup)", FALSE},
+        {"SeRestorePrivilege", "Write any file (restore)", FALSE},
+        {"SeDebugPrivilege", "Debug any process, dump LSASS", FALSE},
+        {"SeTakeOwnershipPrivilege", "Take ownership of objects", FALSE},
+        {"SeLoadDriverPrivilege", "Load kernel driver", FALSE},
+        {"SeCreateTokenPrivilege", "Create tokens", FALSE},
+        {NULL, NULL, FALSE}
+    };
+    
+    int vulnCount = 0;
+    for (int i = 0; privChecks[i].name != NULL; i++) {
+        CheckPrivilege(hToken, privChecks[i].name, &privChecks[i].found);
+        if (privChecks[i].found) vulnCount++;
+    }
+    
+    CloseHandle(hToken);
+    
+    // Build JSON
+    char* json = (char*)malloc(4096);
+    if (!json) return FALSE;
+    
+    int offset = snprintf(json, 4096,
+        "{\n"
+        "  \"check\": \"privileges\",\n"
+        "  \"exploitable_count\": %d,\n"
+        "  \"privileges\": [\n", vulnCount);
+    
+    BOOL first = TRUE;
+    for (int i = 0; privChecks[i].name != NULL; i++) {
+        if (privChecks[i].found) {
+            offset += snprintf(json + offset, 4096 - offset,
+                "%s    {\"name\": \"%s\", \"exploit\": \"%s\"}",
+                first ? "" : ",\n",
+                privChecks[i].name, privChecks[i].exploit);
+            first = FALSE;
+        }
+    }
+    
+    snprintf(json + offset, 4096 - offset, "\n  ]\n}");
+    
+    *outJson = json;
+    return TRUE;
+}
+
+/*
+ * Check for unquoted service paths
+ */
+BOOL Scanner_CheckUnquotedPaths(char** outJson) {
+    if (!outJson) return FALSE;
+    *outJson = NULL;
+    
+    HKEY hServicesKey;
+    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Services", 
+                      0, KEY_READ, &hServicesKey) != ERROR_SUCCESS) {
+        return FALSE;
+    }
+    
+    char* json = (char*)malloc(32768);
+    if (!json) {
+        RegCloseKey(hServicesKey);
+        return FALSE;
+    }
+    
+    int offset = snprintf(json, 32768,
+        "{\n"
+        "  \"check\": \"unquoted_service_paths\",\n"
+        "  \"services\": [\n");
+    
+    int vulnCount = 0;
+    char serviceName[256];
+    DWORD index = 0;
+    DWORD nameLen = sizeof(serviceName);
+    
+    while (RegEnumKeyExA(hServicesKey, index++, serviceName, &nameLen, 
+                         NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
+        nameLen = sizeof(serviceName);
+        
+        HKEY hServiceKey;
+        if (RegOpenKeyExA(hServicesKey, serviceName, 0, KEY_READ, &hServiceKey) == ERROR_SUCCESS) {
+            char imagePath[1024] = {0};
+            DWORD pathLen = sizeof(imagePath);
+            DWORD type;
+            
+            if (RegQueryValueExA(hServiceKey, "ImagePath", NULL, &type, 
+                                 (LPBYTE)imagePath, &pathLen) == ERROR_SUCCESS) {
+                // Check if path contains spaces and is not quoted
+                if (strchr(imagePath, ' ') != NULL && imagePath[0] != '"') {
+                    // Check if it's not a system path
+                    if (_strnicmp(imagePath, "\\SystemRoot", 11) != 0 &&
+                        _strnicmp(imagePath, "system32", 8) != 0) {
+                        
+                        // Escape for JSON
+                        char escaped[2048] = {0};
+                        int j = 0;
+                        for (const char* p = imagePath; *p && j < 2000; p++) {
+                            if (*p == '\\' || *p == '"') escaped[j++] = '\\';
+                            escaped[j++] = *p;
+                        }
+                        
+                        if (vulnCount > 0) {
+                            offset += snprintf(json + offset, 32768 - offset, ",\n");
+                        }
+                        offset += snprintf(json + offset, 32768 - offset,
+                            "    {\"service\": \"%s\", \"path\": \"%s\"}",
+                            serviceName, escaped);
+                        vulnCount++;
+                    }
+                }
+            }
+            RegCloseKey(hServiceKey);
+        }
+    }
+    
+    RegCloseKey(hServicesKey);
+    
+    // Update count at beginning
+    char countStr[64];
+    snprintf(countStr, sizeof(countStr), "\n  ],\n  \"vulnerable_count\": %d\n}", vulnCount);
+    strcat(json + offset, countStr);
+    
+    *outJson = json;
+    return TRUE;
+}
+
+/*
+ * Check AlwaysInstallElevated
+ */
+BOOL Scanner_CheckAlwaysInstallElevated(char** outJson) {
+    if (!outJson) return FALSE;
+    *outJson = NULL;
+    
+    BOOL hkcuEnabled = FALSE;
+    BOOL hklmEnabled = FALSE;
+    
+    // Check HKCU
+    HKEY hKey;
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, 
+                      "SOFTWARE\\Policies\\Microsoft\\Windows\\Installer",
+                      0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        DWORD value = 0;
+        DWORD size = sizeof(value);
+        if (RegQueryValueExA(hKey, "AlwaysInstallElevated", NULL, NULL, 
+                             (LPBYTE)&value, &size) == ERROR_SUCCESS) {
+            hkcuEnabled = (value == 1);
+        }
+        RegCloseKey(hKey);
+    }
+    
+    // Check HKLM
+    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE,
+                      "SOFTWARE\\Policies\\Microsoft\\Windows\\Installer",
+                      0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        DWORD value = 0;
+        DWORD size = sizeof(value);
+        if (RegQueryValueExA(hKey, "AlwaysInstallElevated", NULL, NULL,
+                             (LPBYTE)&value, &size) == ERROR_SUCCESS) {
+            hklmEnabled = (value == 1);
+        }
+        RegCloseKey(hKey);
+    }
+    
+    BOOL vulnerable = hkcuEnabled && hklmEnabled;
+    
+    char* json = (char*)malloc(512);
+    if (!json) return FALSE;
+    
+    snprintf(json, 512,
+        "{\n"
+        "  \"check\": \"always_install_elevated\",\n"
+        "  \"hkcu_enabled\": %s,\n"
+        "  \"hklm_enabled\": %s,\n"
+        "  \"vulnerable\": %s,\n"
+        "  \"exploit\": \"%s\"\n"
+        "}",
+        hkcuEnabled ? "true" : "false",
+        hklmEnabled ? "true" : "false",
+        vulnerable ? "true" : "false",
+        vulnerable ? "msiexec /i malicious.msi" : "N/A");
+    
+    *outJson = json;
+    return TRUE;
+}
+
+/*
+ * Check for cleartext credentials in common registry locations
+ */
+BOOL Scanner_CheckRegistryCredentials(char** outJson) {
+    if (!outJson) return FALSE;
+    *outJson = NULL;
+    
+    struct {
+        HKEY root;
+        const char* rootName;
+        const char* path;
+        const char* valueName;
+        const char* description;
+    } regChecks[] = {
+        {HKEY_LOCAL_MACHINE, "HKLM", "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon", "DefaultPassword", "Windows Autologon"},
+        {HKEY_LOCAL_MACHINE, "HKLM", "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon", "DefaultUserName", "Windows Autologon User"},
+        {HKEY_CURRENT_USER, "HKCU", "Software\\SimonTatham\\PuTTY\\Sessions", NULL, "PuTTY Sessions"},
+        {HKEY_LOCAL_MACHINE, "HKLM", "SOFTWARE\\RealVNC\\WinVNC4", "Password", "VNC Password"},
+        {HKEY_LOCAL_MACHINE, "HKLM", "SOFTWARE\\TightVNC\\Server", "Password", "TightVNC Password"},
+        {HKEY_CURRENT_USER, "HKCU", "Software\\ORL\\WinVNC3\\Password", NULL, "WinVNC Password"},
+        {0, NULL, NULL, NULL, NULL}
+    };
+    
+    char* json = (char*)malloc(8192);
+    if (!json) return FALSE;
+    
+    int offset = snprintf(json, 8192,
+        "{\n"
+        "  \"check\": \"registry_credentials\",\n"
+        "  \"findings\": [\n");
+    
+    int findCount = 0;
+    
+    for (int i = 0; regChecks[i].path != NULL; i++) {
+        HKEY hKey;
+        if (RegOpenKeyExA(regChecks[i].root, regChecks[i].path, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+            char value[512] = {0};
+            DWORD size = sizeof(value);
+            DWORD type;
+            
+            BOOL found = FALSE;
+            if (regChecks[i].valueName) {
+                if (RegQueryValueExA(hKey, regChecks[i].valueName, NULL, &type,
+                                     (LPBYTE)value, &size) == ERROR_SUCCESS && size > 1) {
+                    found = TRUE;
+                }
+            } else {
+                // Check if key exists (e.g., PuTTY sessions)
+                found = TRUE;
+                strcpy(value, "[key exists]");
+            }
+            
+            if (found) {
+                if (findCount > 0) {
+                    offset += snprintf(json + offset, 8192 - offset, ",\n");
+                }
+                
+                // Mask sensitive values
+                char masked[64] = "***";
+                if (strlen(value) > 0 && strcmp(value, "[key exists]") != 0) {
+                    snprintf(masked, sizeof(masked), "[%zu chars]", strlen(value));
+                }
+                
+                offset += snprintf(json + offset, 8192 - offset,
+                    "    {\"location\": \"%s\\\\%s\", \"value\": \"%s\", \"desc\": \"%s\"}",
+                    regChecks[i].rootName, regChecks[i].path,
+                    regChecks[i].valueName ? masked : value,
+                    regChecks[i].description);
+                findCount++;
+            }
+            
+            RegCloseKey(hKey);
+        }
+    }
+    
+    snprintf(json + offset, 8192 - offset, "\n  ],\n  \"findings_count\": %d\n}", findCount);
+    
+    *outJson = json;
+    return TRUE;
+}
+
+/*
+ * Run all privesc checks and return combined results
+ */
+BOOL Scanner_PrivescScan(char** outJson) {
+    if (!outJson) return FALSE;
+    *outJson = NULL;
+    
+    char* privJson = NULL;
+    char* unquotedJson = NULL;
+    char* elevatedJson = NULL;
+    char* regCredsJson = NULL;
+    
+    Scanner_CheckPrivileges(&privJson);
+    Scanner_CheckUnquotedPaths(&unquotedJson);
+    Scanner_CheckAlwaysInstallElevated(&elevatedJson);
+    Scanner_CheckRegistryCredentials(&regCredsJson);
+    
+    // Combine all results
+    size_t totalSize = 1024;
+    if (privJson) totalSize += strlen(privJson);
+    if (unquotedJson) totalSize += strlen(unquotedJson);
+    if (elevatedJson) totalSize += strlen(elevatedJson);
+    if (regCredsJson) totalSize += strlen(regCredsJson);
+    
+    char* json = (char*)malloc(totalSize);
+    if (!json) {
+        free(privJson);
+        free(unquotedJson);
+        free(elevatedJson);
+        free(regCredsJson);
+        return FALSE;
+    }
+    
+    snprintf(json, totalSize,
+        "{\n"
+        "  \"scan_type\": \"privesc\",\n"
+        "  \"privileges\": %s,\n"
+        "  \"unquoted_paths\": %s,\n"
+        "  \"always_install_elevated\": %s,\n"
+        "  \"registry_creds\": %s\n"
+        "}",
+        privJson ? privJson : "null",
+        unquotedJson ? unquotedJson : "null",
+        elevatedJson ? elevatedJson : "null",
+        regCredsJson ? regCredsJson : "null");
+    
+    free(privJson);
+    free(unquotedJson);
+    free(elevatedJson);
+    free(regCredsJson);
+    
+    *outJson = json;
     return TRUE;
 }
