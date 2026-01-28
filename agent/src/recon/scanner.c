@@ -85,7 +85,7 @@ static const ServiceInfo KNOWN_SERVICES[] = {
     {0, NULL, NULL}
 };
 
-/* Data structures */
+/* Structures de données */
 
 typedef struct {
     USHORT port;
@@ -101,7 +101,7 @@ typedef struct {
     DWORD scanTime;
 } ScanResult;
 
-/* Helpers */
+/* Fonctions utilitaires */
 
 /* Initialise Winsock */
 static BOOL InitWinsock(void) {
@@ -140,19 +140,19 @@ static BOOL IsPortOpen(const char* host, USHORT port, char* banner, DWORD banner
         return FALSE;
     }
     
-    // Timeout pour connect
+    // Timeout pour la connexion
     DWORD timeout = SCAN_TIMEOUT_MS;
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
     setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char*)&timeout, sizeof(timeout));
     
-    // Mode non-bloquant pour le connect
+    // Mode non-bloquant pour la connexion
     u_long mode = 1;
     ioctlsocket(sock, FIONBIO, &mode);
     
     int connectResult = connect(sock, result->ai_addr, (int)result->ai_addrlen);
     
     if (connectResult == SOCKET_ERROR && WSAGetLastError() == WSAEWOULDBLOCK) {
-        // Attend la connexion
+        // Attend la fin de connexion
         fd_set writeSet;
         FD_ZERO(&writeSet);
         FD_SET(sock, &writeSet);
@@ -172,9 +172,9 @@ static BOOL IsPortOpen(const char* host, USHORT port, char* banner, DWORD banner
     mode = 0;
     ioctlsocket(sock, FIONBIO, &mode);
     
-    // Tente de récupérer un banner
+    // Tente de récupérer une bannière
     if (banner && bannerSize > 0) {
-        // Timeout court pour le banner
+        // Timeout court pour la bannière
         timeout = 500;
         setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
         
@@ -195,7 +195,7 @@ static BOOL IsPortOpen(const char* host, USHORT port, char* banner, DWORD banner
     return TRUE;
 }
 
-/* Public API */
+/* API publique */
 
 /*
  * Scanne les ports communs d'une cible.
@@ -249,7 +249,7 @@ BOOL Scanner_ScanPorts(const char* target, char** outJson) {
     for (int i = 0; i < result.portCount && offset < (int)jsonSize - 200; i++) {
         PortResult* pr = &result.ports[i];
         
-        // Échappe le banner pour JSON
+        // Échappe la bannière pour JSON
         char escapedBanner[512] = {0};
         int j = 0;
         for (const char* p = pr->banner; *p && j < sizeof(escapedBanner) - 2; p++) {
@@ -302,7 +302,7 @@ BOOL Scanner_ScanRange(const char* target, USHORT startPort, USHORT endPort, cha
     
     result.scanTime = GetTickCount() - startTime;
     
-    // Construit le JSON (même format qu'au-dessus)
+    // Construit le JSON (même format que ci-dessus)
     size_t jsonSize = 4096 + (result.portCount * 512);
     char* json = (char*)malloc(jsonSize);
     if (!json) {
@@ -340,7 +340,7 @@ BOOL Scanner_ScanRange(const char* target, USHORT startPort, USHORT endPort, cha
 }
 
 /*
- * Check if host is up using TCP connect
+ * Vérifie si un hôte est actif via TCP connect
  */
 BOOL Scanner_IsHostUp(const char* target, BOOL* isUp) {
     if (!target || !isUp) return FALSE;
@@ -361,11 +361,9 @@ BOOL Scanner_IsHostUp(const char* target, BOOL* isUp) {
     return TRUE;
 }
 
-/* =========================================================================
- * Privilege Escalation Checks
- * ========================================================================= */
+/* Vérifications d'élévation de privilèges */
 
-/* Check for dangerous privileges */
+/* Vérifie un privilège spécifique */
 static BOOL CheckPrivilege(HANDLE hToken, const char* privName, BOOL* hasPriv) {
     *hasPriv = FALSE;
     
@@ -390,7 +388,7 @@ static BOOL CheckPrivilege(HANDLE hToken, const char* privName, BOOL* hasPriv) {
 }
 
 /*
- * Check for exploitable privileges (SeImpersonate, SeAssignPrimaryToken, etc.)
+ * Vérifie les privilèges exploitables (SeImpersonate, SeAssignPrimaryToken, etc.)
  */
 BOOL Scanner_CheckPrivileges(char** outJson) {
     if (!outJson) return FALSE;
@@ -401,7 +399,7 @@ BOOL Scanner_CheckPrivileges(char** outJson) {
         return FALSE;
     }
     
-    // Privileges to check
+    // Privilèges à vérifier
     struct {
         const char* name;
         const char* exploit;
@@ -426,7 +424,7 @@ BOOL Scanner_CheckPrivileges(char** outJson) {
     
     CloseHandle(hToken);
     
-    // Build JSON
+    // Construit le JSON
     char* json = (char*)malloc(4096);
     if (!json) return FALSE;
     
@@ -454,7 +452,7 @@ BOOL Scanner_CheckPrivileges(char** outJson) {
 }
 
 /*
- * Check for unquoted service paths
+ * Vérifie les chemins de services non quotés
  */
 BOOL Scanner_CheckUnquotedPaths(char** outJson) {
     if (!outJson) return FALSE;
@@ -494,13 +492,13 @@ BOOL Scanner_CheckUnquotedPaths(char** outJson) {
             
             if (RegQueryValueExA(hServiceKey, "ImagePath", NULL, &type, 
                                  (LPBYTE)imagePath, &pathLen) == ERROR_SUCCESS) {
-                // Check if path contains spaces and is not quoted
+                // Vérifie si le chemin contient des espaces et n'est pas quoté
                 if (strchr(imagePath, ' ') != NULL && imagePath[0] != '"') {
-                    // Check if it's not a system path
+                    // Vérifie que ce n'est pas un chemin système
                     if (_strnicmp(imagePath, "\\SystemRoot", 11) != 0 &&
                         _strnicmp(imagePath, "system32", 8) != 0) {
                         
-                        // Escape for JSON
+                        // Échappe pour JSON
                         char escaped[2048] = {0};
                         int j = 0;
                         for (const char* p = imagePath; *p && j < 2000; p++) {
@@ -524,7 +522,7 @@ BOOL Scanner_CheckUnquotedPaths(char** outJson) {
     
     RegCloseKey(hServicesKey);
     
-    // Update count at beginning
+    // Met à jour le compteur
     char countStr[64];
     snprintf(countStr, sizeof(countStr), "\n  ],\n  \"vulnerable_count\": %d\n}", vulnCount);
     strcat(json + offset, countStr);
@@ -534,7 +532,7 @@ BOOL Scanner_CheckUnquotedPaths(char** outJson) {
 }
 
 /*
- * Check AlwaysInstallElevated
+ * Vérifie AlwaysInstallElevated
  */
 BOOL Scanner_CheckAlwaysInstallElevated(char** outJson) {
     if (!outJson) return FALSE;
@@ -543,7 +541,7 @@ BOOL Scanner_CheckAlwaysInstallElevated(char** outJson) {
     BOOL hkcuEnabled = FALSE;
     BOOL hklmEnabled = FALSE;
     
-    // Check HKCU
+    // Vérifie HKCU
     HKEY hKey;
     if (RegOpenKeyExA(HKEY_CURRENT_USER, 
                       "SOFTWARE\\Policies\\Microsoft\\Windows\\Installer",
@@ -557,7 +555,7 @@ BOOL Scanner_CheckAlwaysInstallElevated(char** outJson) {
         RegCloseKey(hKey);
     }
     
-    // Check HKLM
+    // Vérifie HKLM
     if (RegOpenKeyExA(HKEY_LOCAL_MACHINE,
                       "SOFTWARE\\Policies\\Microsoft\\Windows\\Installer",
                       0, KEY_READ, &hKey) == ERROR_SUCCESS) {
@@ -593,7 +591,7 @@ BOOL Scanner_CheckAlwaysInstallElevated(char** outJson) {
 }
 
 /*
- * Check for cleartext credentials in common registry locations
+ * Vérifie les credentials en clair dans le registre
  */
 BOOL Scanner_CheckRegistryCredentials(char** outJson) {
     if (!outJson) return FALSE;
@@ -639,9 +637,9 @@ BOOL Scanner_CheckRegistryCredentials(char** outJson) {
                     found = TRUE;
                 }
             } else {
-                // Check if key exists (e.g., PuTTY sessions)
+                // Vérifie si la clé existe (ex: sessions PuTTY)
                 found = TRUE;
-                strcpy(value, "[key exists]");
+                strcpy(value, "[cle existe]");
             }
             
             if (found) {
@@ -649,9 +647,9 @@ BOOL Scanner_CheckRegistryCredentials(char** outJson) {
                     offset += snprintf(json + offset, 8192 - offset, ",\n");
                 }
                 
-                // Mask sensitive values
+                // Masque les valeurs sensibles
                 char masked[64] = "***";
-                if (strlen(value) > 0 && strcmp(value, "[key exists]") != 0) {
+                if (strlen(value) > 0 && strcmp(value, "[cle existe]") != 0) {
                     snprintf(masked, sizeof(masked), "[%zu chars]", strlen(value));
                 }
                 
@@ -674,7 +672,7 @@ BOOL Scanner_CheckRegistryCredentials(char** outJson) {
 }
 
 /*
- * Run all privesc checks and return combined results
+ * Lance tous les checks de privesc et retourne les résultats combinés
  */
 BOOL Scanner_PrivescScan(char** outJson) {
     if (!outJson) return FALSE;
@@ -690,7 +688,7 @@ BOOL Scanner_PrivescScan(char** outJson) {
     Scanner_CheckAlwaysInstallElevated(&elevatedJson);
     Scanner_CheckRegistryCredentials(&regCredsJson);
     
-    // Combine all results
+    // Combine tous les résultats
     size_t totalSize = 1024;
     if (privJson) totalSize += strlen(privJson);
     if (unquotedJson) totalSize += strlen(unquotedJson);
