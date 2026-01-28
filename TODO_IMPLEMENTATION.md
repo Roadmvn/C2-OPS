@@ -1,5 +1,7 @@
 # Ghost C2 - Implementation Status
 
+> Last updated: Jan 2026
+
 ## Current State
 
 | Module | Agent (C) | Server (Go) | Status |
