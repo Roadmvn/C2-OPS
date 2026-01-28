@@ -19,6 +19,8 @@
 
 /* Définitions NT */
 
+#define STATUS_SUCCESS_NT 0
+
 typedef NTSTATUS (NTAPI *pNtUnmapViewOfSection)(HANDLE ProcessHandle, PVOID BaseAddress);
 typedef NTSTATUS (NTAPI *pNtWriteVirtualMemory)(HANDLE ProcessHandle, PVOID BaseAddress, 
                                                  PVOID Buffer, SIZE_T NumberOfBytesToWrite, 
