@@ -5,6 +5,10 @@
  * - Process Hollowing
  * - APC Injection (classique et Early Bird)
  * - Reflective DLL Loading
+ * - Module Stomping
+ * - Thread Hijacking
+ * - Callback-based Execution
+ * - Fiber Injection
  */
 
 #ifndef INJECTION_H
