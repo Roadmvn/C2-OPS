@@ -143,11 +143,20 @@ Fait:
 - [x] Gadget syscall;ret finder
 - [x] direct_syscalls_init() / direct_syscalls_dump()
 
+## Implémenté - Évasion EDR (edr_evasion.c)
+
+- [x] ETW Patching (Evasion_PatchETW, Evasion_DisableETW)
+- [x] AMSI Bypass (Evasion_PatchAMSI, Evasion_AmsiInitFailedBypass)
+- [x] Unhooking ntdll (Evasion_UnhookNtdll, Evasion_UnhookFunction)
+- [x] Détection de hooks (Evasion_IsFunctionHooked, Evasion_ListHookedFunctions)
+- [x] CLR ETW bypass (Evasion_DisableCLRETW)
+- [x] Full bypass combiné (Evasion_FullBypass)
+
 ## Pas encore commencé
 
 - [ ] ROP chain avec NtContinue (très complexe)
-- [ ] ETW patching
-- [ ] AMSI bypass
+- [ ] API hashing dynamique
+- [ ] String encryption compile-time
 
 ---
 
