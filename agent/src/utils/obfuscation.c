@@ -6,6 +6,8 @@
  * - API hashing dynamique avec plusieurs algorithmes
  * - XOR encoding
  * - Stack strings (construction dynamique)
+ *
+ * Ces techniques empêchent l'analyse statique des strings et imports
  */
 
 #define WIN32_LEAN_AND_MEAN
@@ -65,6 +67,7 @@ DWORD Hash_SDBM(const char* str) {
 
 /*
  * Hash FNV-1a - excellente distribution
+ * Recommandé pour éviter les collisions
  */
 DWORD Hash_FNV1a(const char* str) {
     DWORD hash = 2166136261u;
@@ -466,6 +469,7 @@ FARPROC API_ResolvePrecomputed(DWORD moduleHash, DWORD funcHash) {
 
 /*
  * Opaque predicate - toujours vrai mais difficile à analyser statiquement
+ * Utilisé pour confondre les décompilateurs et analyseurs
  */
 __declspec(noinline) BOOL OpaquePredicate_True(void) {
     volatile int x = 0;
