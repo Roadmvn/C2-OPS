@@ -1,6 +1,6 @@
 # Ghost C2 - État de l'implémentation
 
-> Dernière mise à jour: 28 Janvier 2026
+> Dernière mise à jour: 28 Jan 2026 - v2
 
 ## État actuel
 
