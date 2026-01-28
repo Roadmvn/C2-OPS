@@ -2,6 +2,7 @@
  * obfuscation.h - Techniques d'obfuscation
  *
  * API hashing, string encryption, control flow obfuscation
+ * Évite la détection par analyse statique des binaires
  */
 
 #ifndef OBFUSCATION_H
