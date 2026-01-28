@@ -456,6 +456,7 @@ typedef struct {
 
 /*
  * Génère une version polymorphique du shellcode
+ * Applique les transformations dans l'ordre optimal
  */
 BOOL Poly_Generate(BYTE* shellcode, DWORD shellcodeSize,
                    POLY_OPTIONS* options, BYTE** outResult, DWORD* outSize) {
