@@ -17,83 +17,98 @@
 | Credentials | browser.c, lsass.c | credentials.go | Partial |
 | Exfiltration | exfil.c | - | Partial |
 | Network Tools | socks5.c, portfwd.c | - | Done |
-| Scanner | scanner.c | - | Done |
+| Scanner | scanner.c | - | Partial |
 | Self-Destruct | destruct.c | - | Done |
 
 ---
 
-## Remaining Work
+## Incomplete - To Fix
 
-### Browser Credentials
+### Browser Credentials (browser.c)
 
 Done:
 - Chrome Login Data path detection
-- Basic structure
+- DPAPI decryption structure
+- Basic JSON parsing
+- [x] BCrypt AES-GCM decryption for Chrome v80+ passwords
+- [x] Raw SQLite parsing (heuristic blob detection)
+- [x] Firefox profile detection (profiles.ini)
+- [x] Firefox logins.json parsing
+- [x] Browser_GetAllCredentials() combined function
 
 TODO:
-- SQLite parsing for Chrome Login Data
-- BCrypt AES-GCM decryption for Chrome v80+ passwords
-- Firefox profile detection (profiles.ini)
-- Firefox logins.json parsing
-- NSS library integration for Firefox decryption
+- [ ] NSS library integration for Firefox decryption (currently returns encrypted values)
 
-### LSASS Dump
-
-Done:
-- Process enumeration
-- MiniDumpWriteDump structure
-
-TODO:
-- Full dump functionality with privilege checks
-- Silent dump techniques
-
-### File Exfiltration
+### File Exfiltration (exfil.c)
 
 Done:
 - Extension-based search
 - Keyword-based search
 - Recursive directory scanning
+- Single file read
+- [x] Chunked upload for large files (1MB chunks)
+- [x] File info + state tracking
 
 TODO:
-- Chunked upload for large files
-- Compression before upload
+- [ ] Compression before upload (optional)
 
-### Authentication
+### Authentication (auth.c)
 
 Done:
 - Build key structure
-- Agent ID generation
-- HMAC challenge-response structure
+- Agent ID generation (hardware-based)
+- HMAC-SHA256 challenge-response
 
 TODO:
-- Full server-side validation
-- Kill switch implementation
-- Agent revocation
+- [ ] Server-side validation endpoint
+- [ ] Kill switch implementation (revoke agent by ID)
+- [ ] Agent blacklist/whitelist
 
-### Vulnerability Scanner
+### Vulnerability Scanner (scanner.c)
 
 Done:
 - Port scanning (TCP connect)
 - Service fingerprinting
 - Common ports detection
+- Host up check
+- [x] SeImpersonatePrivilege check
+- [x] SeDebugPrivilege, SeBackup, SeRestore checks
+- [x] Unquoted service paths detection
+- [x] AlwaysInstallElevated check
+- [x] Cleartext credentials in registry (Autologon, VNC, PuTTY)
+- [x] Combined privesc scan function
 
 TODO:
-- SeImpersonatePrivilege check
-- Unquoted service paths detection
-- AlwaysInstallElevated check
-- Cleartext credentials in registry
+- [ ] Weak file permissions check (writable service binaries)
 
-### Advanced Injection (not started)
+---
 
-- Process Hollowing
-- APC Injection
-- Reflective DLL loading
+## Not Started
 
-### Advanced Persistence (not started)
+### Advanced Injection
 
-- COM Hijacking
-- WMI Event Subscription
-- Scheduled Task via COM API
+- [ ] Process Hollowing
+- [ ] APC Injection
+- [ ] Reflective DLL loading
+- [ ] Module stomping
+
+### Advanced Persistence
+
+- [ ] COM Hijacking
+- [ ] WMI Event Subscription
+- [ ] Scheduled Task via COM API
+- [ ] AppInit_DLLs
+- [ ] Image File Execution Options
+
+### Sleep Obfuscation (full)
+
+Current: basic NtDelayExecution
+
+TODO:
+- [ ] Heap encryption during sleep
+- [ ] ROP chain with NtContinue
+- [ ] Timer-based callback
+- [ ] Stack spoofing
 
 ---
 
@@ -101,112 +116,63 @@ TODO:
 
 ### Chrome v80+ Password Decryption
 
-Chrome uses AES-GCM encryption since v80:
-
-1. Read `Local State` file for encrypted master key
-2. Decrypt master key using DPAPI
-3. For each password in `Login Data`:
-   - Extract IV (bytes 3-15)
-   - Extract ciphertext (bytes 15 to -16)
-   - Extract auth tag (last 16 bytes)
-   - Decrypt with AES-GCM using master key
-
-### LSASS Dump
-
-Standard:
 ```c
-MiniDumpWriteDump(hProcess, pid, hFile, MiniDumpWithFullMemory, NULL, NULL, NULL);
+// 1. Read Local State -> extract encrypted_key (base64)
+// 2. Base64 decode -> skip "DPAPI" prefix (5 bytes)
+// 3. CryptUnprotectData to get master key
+
+// 4. For each row in Login Data SQLite:
+//    - password_value starts with "v10" or "v11"
+//    - IV = bytes[3:15]
+//    - ciphertext = bytes[15:-16]  
+//    - tag = bytes[-16:]
+//    - Decrypt with BCryptDecrypt (AES-GCM)
 ```
 
-Alternatives:
-- NtReadVirtualMemory directly
-- Comsvcs.dll method
-- Custom minidump implementation
+### Chunked Upload
 
-### Sleep Obfuscation (full implementation)
+```c
+#define CHUNK_SIZE (1024 * 1024)  // 1MB
 
-1. RtlCaptureContext to save context
-2. Timer callback:
-   - NtProtectVirtualMemory (RW)
-   - SystemFunction032 for encryption
-   - NtProtectVirtualMemory (RX)
-   - WaitForSingleObject
-   - Decrypt
-3. NtContinue to restore
+// Split file into chunks
+// Send each chunk with: file_id, chunk_index, total_chunks, data
+// Server reassembles
+```
+
+### Privilege Escalation Checks
+
+```c
+// SeImpersonatePrivilege
+HANDLE hToken;
+OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken);
+// Check for SeImpersonatePrivilege in token
+
+// Unquoted service paths
+// Query: HKLM\SYSTEM\CurrentControlSet\Services\*
+// Check ImagePath for spaces without quotes
+
+// AlwaysInstallElevated
+// HKCU\SOFTWARE\Policies\Microsoft\Windows\Installer
+// HKLM\SOFTWARE\Policies\Microsoft\Windows\Installer
+// Both must have AlwaysInstallElevated = 1
+```
 
 ---
 
 ## File Structure
 
 ```
-agent/
-├── include/
-│   ├── common.h
-│   ├── ntdefs.h
-│   ├── credentials/
-│   │   ├── browser.h
-│   │   └── lsass.h
-│   ├── exfil/
-│   │   └── exfil.h
-│   ├── network/
-│   │   ├── portfwd.h
-│   │   └── socks5.h
-│   ├── recon/
-│   │   └── scanner.h
-│   ├── remote/
-│   │   └── desktop.h
-│   └── surveillance/
-│       ├── clipboard.h
-│       ├── keylogger.h
-│       ├── microphone.h
-│       ├── screenshot.h
-│       └── webcam.h
-└── src/
-    ├── core/
-    │   ├── auth.c
-    │   ├── config.c
-    │   └── demon.c
+agent/src/
+├── core/
+│   ├── auth.c          <- needs server validation
+│   ├── config.c
+│   └── demon.c
 ├── credentials/
-│   ├── browser.c
-    │   └── lsass.c
-    ├── crypto/
-    │   ├── aes.c
-    │   ├── base64.c
-    │   └── xor.c
-    ├── evasion/
-    │   ├── antidebug.c
-    │   ├── sandbox.c
-    │   ├── sleep.c
-    │   └── syscalls.c
-    ├── exfil/
-    │   └── exfil.c
-    ├── network/
-    │   ├── portfwd.c
-    │   ├── profile.c
-    │   ├── socks5.c
-    │   └── transport.c
-    ├── recon/
-    │   └── scanner.c
-    ├── remote/
-    │   └── desktop.c
-    ├── surveillance/
-    │   ├── clipboard.c
-    │   ├── keylogger.c
-    │   ├── microphone.c
-    │   ├── screenshot.c
-    │   └── webcam.c
-    ├── tasks/
-    │   ├── dispatcher.c
-    │   └── handlers/
-    │       ├── destruct.c
-    │       ├── file.c
-    │       ├── persist.c
-    │       ├── process.c
-    │       ├── recon.c
-    │       ├── shell.c
-    │       └── token.c
-    └── utils/
-        ├── memory.c
-        ├── peb.c
-        └── strings.c
+│   ├── browser.c       <- needs SQLite + AES-GCM
+│   └── lsass.c
+├── exfil/
+│   └── exfil.c         <- needs chunked upload
+├── recon/
+│   └── scanner.c       <- needs privesc checks
+└── ...
 ```
