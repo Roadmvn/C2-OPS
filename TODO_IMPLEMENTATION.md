@@ -123,6 +123,19 @@ Fait:
 - [x] Thread Execution Hijacking (Injection_ThreadHijack)
 - [x] Thread Hijacking avec restauration contexte
 
+## Implémenté - Callback-based Execution
+
+- [x] ThreadPool callback (Injection_ThreadPoolCallback)
+- [x] Timer APC callback (Injection_TimerCallback)
+- [x] EnumWindows callback (Injection_EnumWindowsCallback)
+- [x] CertEnumSystemStore callback (Injection_CertEnumCallback)
+- [x] CopyFile2 progress callback (Injection_CopyFileCallback)
+
+## Implémenté - Fiber Injection
+
+- [x] Fiber local (Injection_FiberLocal)
+- [x] Fiber safe avec wrapper (Injection_FiberSafe)
+
 ## Implémenté - Syscalls directs (syscalls.c)
 
 - [x] Résolution dynamique des SSN (Halo's Gate)
@@ -132,9 +145,9 @@ Fait:
 
 ## Pas encore commencé
 
-- [ ] ROP chain avec NtContinue (complexe)
-- [ ] Callback-based execution (thread pool injection)
-- [ ] Fiber-based injection
+- [ ] ROP chain avec NtContinue (très complexe)
+- [ ] ETW patching
+- [ ] AMSI bypass
 
 ---
 
