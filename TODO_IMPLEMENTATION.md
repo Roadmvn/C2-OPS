@@ -120,12 +120,21 @@ Fait:
 - [x] Remote reflective injection
 - [x] Module Stomping local/distant (Injection_ModuleStomp)
 - [x] Stack Spoofing (Injection_CallWithSpoofedStack)
+- [x] Thread Execution Hijacking (Injection_ThreadHijack)
+- [x] Thread Hijacking avec restauration contexte
+
+## Implémenté - Syscalls directs (syscalls.c)
+
+- [x] Résolution dynamique des SSN (Halo's Gate)
+- [x] Détection des hooks EDR
+- [x] Gadget syscall;ret finder
+- [x] direct_syscalls_init() / direct_syscalls_dump()
 
 ## Pas encore commencé
 
-- [ ] ROP chain avec NtContinue
-- [ ] Thread execution hijacking
-- [ ] Direct syscalls (manual syscall stubs)
+- [ ] ROP chain avec NtContinue (complexe)
+- [ ] Callback-based execution (thread pool injection)
+- [ ] Fiber-based injection
 
 ---
 
