@@ -37,6 +37,13 @@ BOOL Injection_FreeStackSpoof(PVOID trampoline);
 PVOID Injection_CallWithSpoofedStack(PVOID function, PVOID arg1, PVOID arg2, 
                                       PVOID arg3, PVOID arg4);
 
+/* Thread Hijacking */
+BOOL Injection_ThreadHijack(DWORD targetPid, DWORD targetTid, 
+                            BYTE* shellcode, DWORD shellcodeSize);
+BOOL Injection_ThreadHijackWithRestore(DWORD targetPid, DWORD targetTid,
+                                        BYTE* shellcode, DWORD shellcodeSize);
+BOOL Injection_ListThreads(DWORD targetPid, char** outJson);
+
 /* Utilitaires */
 DWORD Injection_FindProcessByName(const char* processName);
 BOOL Injection_ListInjectableProcesses(char** outJson);
