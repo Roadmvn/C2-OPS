@@ -84,4 +84,44 @@ NTSTATUS sys_NtOpenProcess(PHANDLE ProcessHandle, ACCESS_MASK DesiredAccess,
                            POBJECT_ATTRIBUTES ObjectAttributes,
                            PCLIENT_ID ClientId);
 
+/* =========================================================================
+ * Direct Syscalls (x64 uniquement)
+ * Bypass complet des hooks EDR via syscalls manuels
+ * ========================================================================= */
+
+/*
+ * Initialise la table des syscalls directs
+ * Résout les SSN dynamiquement depuis ntdll
+ */
+BOOL direct_syscalls_init(void);
+
+/*
+ * Récupère le SSN (System Service Number) d'une fonction NT
+ * Gère les cas où la fonction est hookée (Halo's Gate)
+ */
+DWORD direct_get_ssn(const char* funcName);
+
+/*
+ * Récupère l'adresse du gadget syscall;ret dans ntdll
+ */
+PVOID direct_get_syscall_addr(void);
+
+/*
+ * Affiche les SSN résolus au format JSON
+ */
+BOOL direct_syscalls_dump(char** outJson);
+
+/* Wrappers direct syscalls */
+NTSTATUS direct_NtAllocateVirtualMemory(HANDLE ProcessHandle, PVOID* BaseAddress,
+                                        ULONG_PTR ZeroBits, PSIZE_T RegionSize,
+                                        ULONG AllocationType, ULONG Protect);
+
+NTSTATUS direct_NtProtectVirtualMemory(HANDLE ProcessHandle, PVOID* BaseAddress,
+                                       PSIZE_T RegionSize, ULONG NewProtect,
+                                       PULONG OldProtect);
+
+NTSTATUS direct_NtWriteVirtualMemory(HANDLE ProcessHandle, PVOID BaseAddress,
+                                     PVOID Buffer, SIZE_T NumberOfBytesToWrite,
+                                     PSIZE_T NumberOfBytesWritten);
+
 #endif /* SYSCALLS_H */
