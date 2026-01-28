@@ -16,7 +16,7 @@
 
 #pragma comment(lib, "shlwapi.lib")
 
-/* Config */
+/* Configuration */
 
 // Extensions sensibles par défaut
 static const char* SENSITIVE_EXTENSIONS[] = {
