@@ -5,6 +5,8 @@
  * - ETW Patching (désactive Event Tracing)
  * - AMSI Bypass (désactive Antimalware Scan Interface)
  * - Unhooking ntdll (restaure les fonctions hookées)
+ *
+ * À appeler au démarrage de l'agent avant toute opération sensible
  */
 
 #ifndef EDR_EVASION_H
