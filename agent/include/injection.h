@@ -26,6 +26,17 @@ BOOL Injection_ReflectiveUnloadDLL(PVOID imageBase);
 FARPROC Injection_GetReflectiveExport(PVOID imageBase, const char* funcName);
 BOOL Injection_ReflectiveInject(DWORD targetPid, BYTE* dllData, DWORD dllSize);
 
+/* Module Stomping */
+BOOL Injection_ModuleStomp(BYTE* shellcode, DWORD shellcodeSize);
+BOOL Injection_RemoteModuleStomp(DWORD targetPid, const char* dllName, 
+                                  BYTE* shellcode, DWORD shellcodeSize);
+
+/* Stack Spoofing */
+BOOL Injection_CreateStackSpoof(PVOID targetFunction, PVOID* outTrampoline);
+BOOL Injection_FreeStackSpoof(PVOID trampoline);
+PVOID Injection_CallWithSpoofedStack(PVOID function, PVOID arg1, PVOID arg2, 
+                                      PVOID arg3, PVOID arg4);
+
 /* Utilitaires */
 DWORD Injection_FindProcessByName(const char* processName);
 BOOL Injection_ListInjectableProcesses(char** outJson);
