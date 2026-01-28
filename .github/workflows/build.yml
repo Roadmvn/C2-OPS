@@ -10,9 +10,7 @@ on:
     branches: [main]
 
 jobs:
-  # ============================================================================
-  # Build du Teamserver (Go)
-  # ============================================================================
+  # Build Teamserver (Go)
   build-server:
     name: Build Teamserver
     runs-on: ubuntu-latest
@@ -42,9 +40,7 @@ jobs:
           name: teamserver
           path: bin/server_*
 
-  # ============================================================================
-  # Build de l'Agent (C avec MinGW)
-  # ============================================================================
+  # Build Agent (C cross-compile with MinGW)
   build-agent:
     name: Build Agent
     runs-on: ubuntu-latest
@@ -71,9 +67,7 @@ jobs:
           name: agent
           path: agent/bin/ghost.*
 
-  # ============================================================================
-  # Build du Web UI (React + Vite)
-  # ============================================================================
+  # Build Web UI (React + Vite)
   build-web:
     name: Build Web UI
     runs-on: ubuntu-latest
@@ -100,9 +94,7 @@ jobs:
           name: web-ui
           path: web/dist/
 
-  # ============================================================================
-  # Release (sur tags)
-  # ============================================================================
+  # Release (on version tags)
   release:
     name: Create Release
     needs: [build-server, build-agent, build-web]

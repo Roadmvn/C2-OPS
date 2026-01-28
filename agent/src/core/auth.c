@@ -14,9 +14,7 @@
 
 #pragma comment(lib, "advapi32.lib")
 
-/* ============================================================================
- * Configuration
- * ============================================================================ */
+/* Config */
 
 // Clé de build par défaut (sera remplacée par le builder)
 // Format: 32 bytes (256 bits) pour HMAC-SHA256
@@ -30,9 +28,7 @@ static BYTE g_buildKey[32] = {
 static BOOL g_isAuthenticated = FALSE;
 static char g_authToken[65] = {0}; // Token de session après auth
 
-/* ============================================================================
- * Utilitaires Crypto
- * ============================================================================ */
+/* Crypto helpers */
 
 /* Convertit des bytes en hex string */
 static void BytesToHex(const BYTE* bytes, DWORD len, char* outHex) {
@@ -126,9 +122,7 @@ cleanup:
     return result;
 }
 
-/* ============================================================================
- * API Publique
- * ============================================================================ */
+/* Public API */
 
 /*
  * Répond à un challenge d'authentification.

@@ -19,9 +19,7 @@
 
 #include "../../include/common.h"
 
-/* ============================================================================
- * Configuration
- * ============================================================================ */
+/* Config */
 
 #define SCAN_TIMEOUT_MS     2000
 #define MAX_SCAN_RESULTS    256
@@ -86,9 +84,7 @@ static const ServiceInfo KNOWN_SERVICES[] = {
     {0, NULL, NULL}
 };
 
-/* ============================================================================
- * Structures
- * ============================================================================ */
+/* Data structures */
 
 typedef struct {
     USHORT port;
@@ -104,9 +100,7 @@ typedef struct {
     DWORD scanTime;
 } ScanResult;
 
-/* ============================================================================
- * Utilitaires
- * ============================================================================ */
+/* Helpers */
 
 /* Initialise Winsock */
 static BOOL InitWinsock(void) {
@@ -200,9 +194,7 @@ static BOOL IsPortOpen(const char* host, USHORT port, char* banner, DWORD banner
     return TRUE;
 }
 
-/* ============================================================================
- * API Publique
- * ============================================================================ */
+/* Public API */
 
 /*
  * Scanne les ports communs d'une cible.

@@ -26,9 +26,7 @@ typedef ULONG PROPID;
 // Pour SendInput
 #pragma comment(lib, "user32.lib")
 
-/* ============================================================================
- * Variables globales GDI+
- * ============================================================================ */
+/* GDI+ state */
 static ULONG_PTR g_gdiplusToken = 0;
 static BOOL g_gdiplusInit = FALSE;
 
@@ -79,9 +77,7 @@ static BOOL GetEncoderClsid(const WCHAR* format, CLSID* pClsid) {
     return FALSE;
 }
 
-/* ============================================================================
- * Capture d'écran
- * ============================================================================ */
+/* Screen capture */
 
 /*
  * Capture l'écran entier et retourne les données JPEG.
@@ -181,9 +177,7 @@ BOOL Desktop_CaptureScreen(BYTE** outData, DWORD* outSize, int quality) {
     return (*outData != NULL);
 }
 
-/* ============================================================================
- * Injection d'inputs
- * ============================================================================ */
+/* Input injection */
 
 /*
  * Injecte un événement souris.

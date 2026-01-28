@@ -10,10 +10,7 @@
 
 #include "../../include/common.h"
 
-/* ============================================================================
- * Structure du profil malleable
- * ============================================================================
- */
+/* Malleable profile structure */
 typedef struct {
   /* URIs pour les requêtes GET (récupération de tâches) */
   const char **get_uris;
@@ -36,10 +33,7 @@ typedef struct {
 
 } malleable_profile_t;
 
-/* ============================================================================
- * Profils pré-définis
- * ============================================================================
- */
+/* Pre-defined profiles */
 
 /* Profil par défaut - minimaliste */
 extern const malleable_profile_t PROFILE_DEFAULT;
@@ -50,10 +44,7 @@ extern const malleable_profile_t PROFILE_JQUERY;
 /* Profil Microsoft - imite Windows Update */
 extern const malleable_profile_t PROFILE_MICROSOFT;
 
-/* ============================================================================
- * Prototypes
- * ============================================================================
- */
+/* Prototypes */
 
 /*
  * Récupère le profil actif.

@@ -13,9 +13,7 @@
 #include <windows.h>
 #include <stdio.h>
 
-/* ============================================================================
- * Constantes
- * ============================================================================ */
+/* Constants */
 
 // Clés registry connues pour la persistence
 static const char *REGISTRY_PATHS[] = {
@@ -30,9 +28,7 @@ static const char *REGISTRY_PATHS[] = {
 // Délai avant suppression du fichier (en secondes)
 #define DELETE_DELAY_SECONDS 3
 
-/* ============================================================================
- * Fonctions internes
- * ============================================================================ */
+/* Internal helpers */
 
 /*
  * Supprime une entrée registry.
@@ -116,9 +112,7 @@ static int create_self_delete_script(const char *exe_path)
     return 0;
 }
 
-/* ============================================================================
- * Fonctions publiques
- * ============================================================================ */
+/* Public API */
 
 int destruct_remove_persistence(void)
 {

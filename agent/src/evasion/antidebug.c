@@ -8,10 +8,7 @@
 #include "../utils/strings.h"
 #include "syscalls.h"
 
-/* ============================================================================
- * Hashes des noms de process d'analyse
- * ============================================================================
- */
+/* Hashes of known analysis tools */
 static const uint32_t ANALYSIS_PROCESS_HASHES[] = {
     0x85D48D7C, /* ollydbg.exe */
     0xB127D74B, /* x64dbg.exe */
@@ -29,10 +26,7 @@ static const uint32_t ANALYSIS_PROCESS_HASHES[] = {
     0x12345678, /* cheatengine-x86_64.exe (placeholder) */
     0};
 
-/* ============================================================================
- * Implémentation
- * ============================================================================
- */
+/* Detection functions */
 
 bool check_peb_being_debugged(void) {
   PPEB peb = NtCurrentPeb();

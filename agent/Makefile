@@ -1,10 +1,5 @@
-# ============================================================================
-# Makefile pour Ghost Agent
-# 
-# Target: Windows x64
-# Compiler: MinGW-w64 (cross-compilation depuis Mac/Linux)
-# Date: Janvier 2026
-# ============================================================================
+# Ghost Agent Makefile
+# Target: Windows x64 | Compiler: MinGW-w64 (cross-compile from Mac/Linux)
 
 # Compiler
 CC = x86_64-w64-mingw32-gcc
@@ -83,9 +78,7 @@ OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(ALL_SRC))
 EXE_TARGET = $(BIN_DIR)/ghost.exe
 DLL_TARGET = $(BIN_DIR)/ghost.dll
 
-# ============================================================================
-# Rules
-# ============================================================================
+# Build rules
 
 .PHONY: all clean exe dll dirs
 
@@ -131,9 +124,7 @@ clean:
 	rm -rf $(BUILD_DIR) $(BIN_DIR)
 	@echo "[+] Clean complete"
 
-# ============================================================================
 # Helper targets
-# ============================================================================
 
 # Vérifie que MinGW est installé
 check:

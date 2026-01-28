@@ -7,12 +7,9 @@
 #include "../crypto/xor.h"
 #include "../utils/strings.h"
 
-/* ============================================================================
- * Configuration chiffrée embarquée
- *
- * Ces valeurs sont XOR avec une clé statique. Le générateur de payload
- * modifie ces bytes directement dans le binaire compilé.
- * ============================================================================
+/*
+ * Embedded encrypted config
+ * XOR'd with static key - payload generator patches these bytes in the compiled binary
  */
 
 /* Clé XOR pour la config - sera randomisée par le builder */
@@ -47,10 +44,7 @@ static uint8_t EMBEDDED_AES_IV[16] = {0xf0, 0xe1, 0xd2, 0xc3, 0xb4, 0xa5,
                                       0x96, 0x87, 0x78, 0x69, 0x5a, 0x4b,
                                       0x3c, 0x2d, 0x1e, 0x0f};
 
-/* ============================================================================
- * Fonctions internes
- * ============================================================================
- */
+/* Internal helpers */
 
 /*
  * Déchiffre une string XOR en place.
@@ -79,10 +73,7 @@ static void generate_simple_uuid(char *out, size_t out_size) {
            ((unsigned long long)rand() << 32) | rand());
 }
 
-/* ============================================================================
- * Implémentation des fonctions publiques
- * ============================================================================
- */
+/* Public API */
 
 int config_init(agent_config_t *config) {
   if (!config) {

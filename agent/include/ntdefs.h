@@ -10,10 +10,7 @@
 
 #include <windows.h>
 
-/* ============================================================================
- * Types de base NT
- * ============================================================================
- */
+/* NT base types */
 
 typedef LONG NTSTATUS;
 
@@ -22,21 +19,14 @@ typedef LONG NTSTATUS;
 #define STATUS_SUCCESS_NT ((NTSTATUS)0x00000000L)
 #define STATUS_INFO_LENGTH_MISMATCH ((NTSTATUS)0xC0000004L)
 
-/* ============================================================================
- * UNICODE_STRING - utilisée partout dans le kernel
- * ============================================================================
- */
+/* UNICODE_STRING (used throughout the kernel) */
 typedef struct _UNICODE_STRING {
   USHORT Length;
   USHORT MaximumLength;
   PWSTR Buffer;
 } UNICODE_STRING, *PUNICODE_STRING;
 
-/* ============================================================================
- * Structures PEB (Process Environment Block)
- * On en a besoin pour le PEB walking et résoudre les APIs
- * ============================================================================
- */
+/* PEB structures (needed for PEB walking and API resolution) */
 
 typedef struct _PEB_LDR_DATA {
   ULONG Length;
@@ -133,19 +123,13 @@ typedef struct _PEB {
   /* ... y'a d'autres champs mais on s'en fout pour l'instant */
 } PEB, *PPEB;
 
-/* ============================================================================
- * CLIENT_ID
- * ============================================================================
- */
+/* CLIENT_ID */
 typedef struct _CLIENT_ID {
     HANDLE UniqueProcess;
     HANDLE UniqueThread;
 } CLIENT_ID, *PCLIENT_ID;
 
-/* ============================================================================
- * TEB (Thread Environment Block)
- * ============================================================================
- */
+/* TEB (Thread Environment Block) */
 typedef struct _TEB {
   NT_TIB NtTib;
   PVOID EnvironmentPointer;
@@ -156,10 +140,7 @@ typedef struct _TEB {
   /* ... on s'arrête là, c'est ce qu'on a besoin */
 } TEB, *PTEB;
 
-/* ============================================================================
- * Object Attributes - pour les syscalls NT
- * ============================================================================
- */
+/* OBJECT_ATTRIBUTES (for NT syscalls) */
 typedef struct _OBJECT_ATTRIBUTES {
   ULONG Length;
   HANDLE RootDirectory;
@@ -179,10 +160,7 @@ typedef struct _OBJECT_ATTRIBUTES {
     (p)->SecurityQualityOfService = NULL;                                      \
   }
 
-/* ============================================================================
- * IO_STATUS_BLOCK - retour des opérations I/O
- * ============================================================================
- */
+/* IO_STATUS_BLOCK (I/O operation return status) */
 typedef struct _IO_STATUS_BLOCK {
   union {
     NTSTATUS Status;
@@ -191,10 +169,7 @@ typedef struct _IO_STATUS_BLOCK {
   ULONG_PTR Information;
 } IO_STATUS_BLOCK, *PIO_STATUS_BLOCK;
 
-/* ============================================================================
- * PROCESS_BASIC_INFORMATION - pour NtQueryInformationProcess
- * ============================================================================
- */
+/* PROCESS_BASIC_INFORMATION (for NtQueryInformationProcess) */
 typedef struct _PROCESS_BASIC_INFORMATION {
   NTSTATUS ExitStatus;
   PPEB PebBaseAddress;
@@ -214,10 +189,7 @@ typedef enum _PROCESSINFOCLASS {
   ProcessDebugFlags = 31,
 } PROCESSINFOCLASS;
 
-/* ============================================================================
- * Macros pour accéder au PEB/TEB
- * ============================================================================
- */
+/* PEB/TEB access macros */
 
 /* Récupère le TEB du thread courant via le registre GS (x64) */
 #if defined(_M_X64) || defined(__x86_64__)
@@ -228,10 +200,7 @@ typedef enum _PROCESSINFOCLASS {
 #define NtCurrentPeb() (NtCurrentTeb()->ProcessEnvironmentBlock)
 #endif
 
-/* ============================================================================
- * Typedefs pour les fonctions NT qu'on va résoudre dynamiquement
- * ============================================================================
- */
+/* NT function typedefs (for dynamic resolution) */
 
 typedef NTSTATUS(NTAPI *fn_NtAllocateVirtualMemory)(
     HANDLE ProcessHandle, PVOID *BaseAddress, ULONG_PTR ZeroBits,

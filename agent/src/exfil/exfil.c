@@ -16,9 +16,7 @@
 
 #pragma comment(lib, "shlwapi.lib")
 
-/* ============================================================================
- * Configuration
- * ============================================================================ */
+/* Config */
 
 // Extensions sensibles par défaut
 static const char* SENSITIVE_EXTENSIONS[] = {
@@ -43,9 +41,7 @@ static const char* SENSITIVE_KEYWORDS[] = {
 // Taille max pour recherche dans contenu
 #define MAX_CONTENT_SEARCH_SIZE (10 * 1024 * 1024)  // 10 MB
 
-/* ============================================================================
- * Utilitaires
- * ============================================================================ */
+/* Helpers */
 
 /* Vérifie si un fichier a une extension sensible */
 static BOOL HasSensitiveExtension(const char* filename) {
@@ -79,9 +75,7 @@ static BOOL ContainsSensitiveKeyword(const char* filename) {
     return FALSE;
 }
 
-/* ============================================================================
- * Recherche de fichiers
- * ============================================================================ */
+/* File search */
 
 typedef struct {
     char** files;
@@ -166,9 +160,7 @@ static void SearchDirectory(const char* basePath, FileList* list,
     FindClose(hFind);
 }
 
-/* ============================================================================
- * API Publique
- * ============================================================================ */
+/* Public API */
 
 /*
  * Recherche des fichiers sensibles dans un répertoire.

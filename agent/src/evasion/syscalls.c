@@ -9,10 +9,7 @@
 #include "../utils/memory.h"
 #include "../utils/peb.h"
 
-/* ============================================================================
- * Structure pour stocker les numéros de syscall
- * ============================================================================
- */
+/* Syscall number cache */
 typedef struct {
   DWORD NtAllocateVirtualMemory;
   DWORD NtFreeVirtualMemory;
@@ -31,10 +28,7 @@ static bool g_syscalls_initialized = false;
 /* Adresse de ntdll pour les jumps */
 static HMODULE g_ntdll = NULL;
 
-/* ============================================================================
- * Fonctions internes
- * ============================================================================
- */
+/* Internal helpers */
 
 /*
  * Extrait le numéro de syscall d'une fonction ntdll.
@@ -100,10 +94,7 @@ static uint8_t *find_syscall_ret(void) {
   return NULL;
 }
 
-/* ============================================================================
- * Implémentation des fonctions publiques
- * ============================================================================
- */
+/* Public API */
 
 int syscalls_init(void) {
   if (g_syscalls_initialized) {
@@ -147,13 +138,9 @@ void syscalls_cleanup(void) {
   g_ntdll = NULL;
 }
 
-/* ============================================================================
- * Wrappers de syscalls
- *
- * Note: Dans une vraie implémentation, on utiliserait de l'assembleur inline
- * pour faire le syscall directement. Ici on utilise les fonctions ntdll
- * pour la compatibilité, mais le numéro de syscall est récupéré dynamiquement.
- * ============================================================================
+/*
+ * Syscall wrappers
+ * Uses ntdll functions for compatibility. For full stealth, inline asm would be needed.
  */
 
 /*

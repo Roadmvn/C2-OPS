@@ -22,10 +22,7 @@
 /* Instance globale de l'agent */
 demon_ctx_t g_demon = {0};
 
-/* ============================================================================
- * Fonctions internes
- * ============================================================================
- */
+/* Internal functions */
 
 /*
  * Calcule le temps de sleep avec jitter.
@@ -90,10 +87,7 @@ static void demon_sleep(DWORD ms) {
   Sleep(ms);
 }
 
-/* ============================================================================
- * Implémentation des fonctions publiques
- * ============================================================================
- */
+/* Public API */
 
 int demon_init(void) {
   int status;
@@ -568,10 +562,7 @@ void demon_cleanup(void) {
   memset(&g_demon, 0, sizeof(demon_ctx_t));
 }
 
-/* ============================================================================
- * Point d'entrée principal - appelé depuis main.c
- * ============================================================================
- */
+/* Main entry point (called from main.c) */
 
 int demon_main(void) {
   int status = demon_init();

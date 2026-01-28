@@ -10,10 +10,7 @@
 #include <winhttp.h>
 #pragma comment(lib, "winhttp.lib")
 
-/* ============================================================================
- * Fonctions internes
- * ============================================================================
- */
+/* Internal helpers */
 
 /*
  * Parse une URL et extrait le host, port, path.
@@ -182,10 +179,7 @@ static int do_request(transport_ctx_t *ctx, const wchar_t *method,
   return STATUS_SUCCESS;
 }
 
-/* ============================================================================
- * Implémentation des fonctions publiques
- * ============================================================================
- */
+/* Public API */
 
 int transport_init(transport_ctx_t *ctx, agent_config_t *config) {
   if (!ctx || !config) {

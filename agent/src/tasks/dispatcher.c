@@ -27,12 +27,9 @@
 #include "../../include/network/portfwd.h"
 #include "../../include/recon/scanner.h"
 
-/* ============================================================================
- * Parser JSON minimal
- *
- * Note: C'est un parser très basique, juste assez pour nos besoins.
- * Dans un vrai projet on utiliserait une lib JSON.
- * ============================================================================
+/*
+ * Minimal JSON parser - just enough for our needs
+ * A real project would use a proper JSON lib
  */
 
 /*
@@ -215,10 +212,7 @@ static command_type_t string_to_command(const char *cmd) {
   return CMD_NONE;
 }
 
-/* ============================================================================
- * Implémentation
- * ============================================================================
- */
+/* Implementation */
 
 int dispatcher_init(void) {
   /* Pour l'instant rien à initialiser */

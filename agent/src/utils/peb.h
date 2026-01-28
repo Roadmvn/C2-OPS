@@ -45,11 +45,7 @@ FARPROC peb_get_proc(HMODULE module, uint32_t func_hash);
  */
 FARPROC peb_get_function(uint32_t module_hash, uint32_t func_hash);
 
-/* ============================================================================
- * Hashes pré-calculés des modules courants
- * Calculés avec l'algo DJB2 sur le nom en lowercase
- * ============================================================================
- */
+/* Pre-computed module hashes (DJB2 on lowercase name) */
 #define HASH_KERNEL32_DLL 0x6A4ABC5B   /* kernel32.dll */
 #define HASH_NTDLL_DLL 0x3CFA685D      /* ntdll.dll */
 #define HASH_KERNELBASE_DLL 0x03EB43A8 /* kernelbase.dll */
@@ -58,10 +54,7 @@ FARPROC peb_get_function(uint32_t module_hash, uint32_t func_hash);
 #define HASH_WINHTTP_DLL 0x35B24524    /* winhttp.dll */
 #define HASH_WS2_32_DLL 0x75E5D2C2     /* ws2_32.dll */
 
-/* ============================================================================
- * Hashes pré-calculés des fonctions courantes
- * ============================================================================
- */
+/* Pre-computed function hashes */
 /* kernel32.dll */
 #define HASH_LOADLIBRARYA 0xEC0E4E8E   /* LoadLibraryA */
 #define HASH_GETPROCADDRESS 0x7C0DFCAA /* GetProcAddress */

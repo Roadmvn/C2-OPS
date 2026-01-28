@@ -9,19 +9,13 @@
 #include "aes.h"
 #include "../utils/memory.h"
 
-/* ============================================================================
- * Constantes AES
- * ============================================================================
- */
+/* AES constants */
 
 #define Nb 4  /* Nombre de colonnes (32-bit words) */
 #define Nk 8  /* Nombre de mots de 32 bits dans la clé (AES-256) */
 #define Nr 14 /* Nombre de rounds (AES-256) */
 
-/* ============================================================================
- * Tables de substitution (S-Box)
- * ============================================================================
- */
+/* S-Box lookup tables */
 static const uint8_t sbox[256] = {
     0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b,
     0xfe, 0xd7, 0xab, 0x76, 0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0,
@@ -74,10 +68,7 @@ static const uint8_t rsbox[256] = {
 static const uint8_t Rcon[11] = {0x8d, 0x01, 0x02, 0x04, 0x08, 0x10,
                                  0x20, 0x40, 0x80, 0x1b, 0x36};
 
-/* ============================================================================
- * Types internes
- * ============================================================================
- */
+/* Internal types */
 typedef uint8_t state_t[4][4];
 
 typedef struct {
@@ -85,10 +76,7 @@ typedef struct {
   uint8_t Iv[AES_BLOCK_SIZE];
 } aes_ctx_t;
 
-/* ============================================================================
- * Fonctions internes AES
- * ============================================================================
- */
+/* AES core operations */
 
 static uint8_t xtime(uint8_t x) { return ((x << 1) ^ (((x >> 7) & 1) * 0x1b)); }
 
@@ -308,10 +296,7 @@ static void xor_with_iv(uint8_t *buf, const uint8_t *Iv) {
   }
 }
 
-/* ============================================================================
- * Fonctions publiques
- * ============================================================================
- */
+/* Public API */
 
 int aes_encrypt(const uint8_t *plaintext, size_t plaintext_len,
                 const uint8_t *key, const uint8_t *iv, uint8_t **ciphertext,

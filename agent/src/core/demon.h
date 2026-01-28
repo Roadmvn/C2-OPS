@@ -12,10 +12,7 @@
 #include "../tasks/dispatcher.h"
 #include "config.h"
 
-/* ============================================================================
- * Contexte global de l'agent
- * ============================================================================
- */
+/* Global agent context */
 typedef struct {
   agent_config_t config;     /* Configuration */
   transport_ctx_t transport; /* Contexte réseau */
@@ -28,10 +25,7 @@ typedef struct {
 /* Instance globale (déclarée dans demon.c) */
 extern demon_ctx_t g_demon;
 
-/* ============================================================================
- * Prototypes
- * ============================================================================
- */
+/* Prototypes */
 
 /*
  * Initialise l'agent.

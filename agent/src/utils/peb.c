@@ -8,10 +8,7 @@
 #include "peb.h"
 #include "strings.h"
 
-/* ============================================================================
- * Fonctions internes
- * ============================================================================
- */
+/* Internal helpers */
 
 /*
  * Calcule le hash DJB2 d'une string ASCII en lowercase.
@@ -49,10 +46,7 @@ static uint32_t hash_wstring_lower(const wchar_t *wstr, size_t len) {
   return hash;
 }
 
-/* ============================================================================
- * Implémentation des fonctions publiques
- * ============================================================================
- */
+/* Public API */
 
 HMODULE peb_get_module(uint32_t module_hash) {
   /* Récupère le PEB du process courant */

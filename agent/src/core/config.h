@@ -10,10 +10,7 @@
 
 #include "common.h"
 
-/* ============================================================================
- * Structure de configuration de l'agent
- * ============================================================================
- */
+/* Agent config structure */
 typedef struct {
   char agent_id[64];        /* UUID de l'agent, généré au premier run */
   char c2_url[MAX_URL_LEN]; /* URL du serveur C2 */
@@ -27,10 +24,7 @@ typedef struct {
   bool debug_mode;          /* Mode debug (plus de logs) */
 } agent_config_t;
 
-/* ============================================================================
- * Prototypes
- * ============================================================================
- */
+/* Prototypes */
 
 /*
  * Initialise la configuration.
@@ -61,10 +55,7 @@ void config_generate_agent_id(agent_config_t *config);
  */
 void config_cleanup(agent_config_t *config);
 
-/* ============================================================================
- * Config par défaut - ces valeurs sont chiffrées à la compilation
- * ============================================================================
- */
+/* Default config (encrypted at compile time) */
 
 /*
  * Note: Dans un vrai scénario, ces valeurs seraient injectées par le

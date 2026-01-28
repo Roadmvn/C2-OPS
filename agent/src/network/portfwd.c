@@ -18,16 +18,12 @@
 
 #include "../../include/common.h"
 
-/* ============================================================================
- * Configuration
- * ============================================================================ */
+/* Config */
 
 #define PORTFWD_BUFFER_SIZE   8192
 #define MAX_PORT_FORWARDS     10
 
-/* ============================================================================
- * Structures
- * ============================================================================ */
+/* Data structures */
 
 typedef struct {
     int id;
@@ -44,9 +40,7 @@ static int g_nextId = 1;
 static CRITICAL_SECTION g_cs;
 static BOOL g_csInit = FALSE;
 
-/* ============================================================================
- * Thread de relais
- * ============================================================================ */
+/* Relay thread */
 
 typedef struct {
     SOCKET clientSocket;
@@ -99,9 +93,7 @@ static DWORD WINAPI PortFwdRelayThread(LPVOID param) {
     return 0;
 }
 
-/* ============================================================================
- * Thread d'écoute du port forward
- * ============================================================================ */
+/* Listener thread */
 
 static DWORD WINAPI PortFwdListenThread(LPVOID param) {
     PortForward* pf = (PortForward*)param;
@@ -169,9 +161,7 @@ static DWORD WINAPI PortFwdListenThread(LPVOID param) {
     return 0;
 }
 
-/* ============================================================================
- * API Publique
- * ============================================================================ */
+/* Public API */
 
 /*
  * Initialise le module port forward.

@@ -20,9 +20,7 @@
 
 #include "../../include/common.h"
 
-/* ============================================================================
- * Configuration
- * ============================================================================ */
+/* SOCKS5 protocol constants */
 
 #define SOCKS5_VERSION      0x05
 #define SOCKS5_AUTH_NONE    0x00
@@ -34,18 +32,14 @@
 #define PROXY_BUFFER_SIZE   8192
 #define MAX_PROXY_CLIENTS   10
 
-/* ============================================================================
- * État global
- * ============================================================================ */
+/* Global state */
 
 static SOCKET g_listenSocket = INVALID_SOCKET;
 static BOOL g_proxyRunning = FALSE;
 static HANDLE g_proxyThread = NULL;
 static USHORT g_proxyPort = 0;
 
-/* ============================================================================
- * Gestion des connexions
- * ============================================================================ */
+/* Connection handling */
 
 typedef struct {
     SOCKET clientSocket;
@@ -270,9 +264,7 @@ static DWORD WINAPI ProxyThread(LPVOID param) {
     return 0;
 }
 
-/* ============================================================================
- * API Publique
- * ============================================================================ */
+/* Public API */
 
 /*
  * Démarre le serveur SOCKS5 sur le port spécifié.

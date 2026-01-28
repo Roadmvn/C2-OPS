@@ -6,10 +6,7 @@
 #include "../utils/memory.h"
 #include "../utils/strings.h"
 
-/* ============================================================================
- * Profil par défaut
- * ============================================================================
- */
+/* Default profile */
 static const char *DEFAULT_GET_URIS[] = {"/api/get", "/check", "/status"};
 
 static const char *DEFAULT_POST_URIS[] = {"/api/post", "/update", "/submit"};
@@ -29,10 +26,7 @@ const malleable_profile_t PROFILE_DEFAULT = {
     .user_agent =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"};
 
-/* ============================================================================
- * Profil jQuery - imite du trafic CDN
- * ============================================================================
- */
+/* jQuery profile - mimics CDN traffic */
 static const char *JQUERY_GET_URIS[] = {
     "/jquery-3.6.0.min.js", "/jquery-3.6.0.slim.min.js", "/jquery-ui.min.js",
     "/jquery.validate.min.js"};
@@ -58,10 +52,7 @@ const malleable_profile_t PROFILE_JQUERY = {
     .user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) "
                   "Gecko/20100101 Firefox/115.0"};
 
-/* ============================================================================
- * Profil Microsoft - imite Windows Update
- * ============================================================================
- */
+/* Microsoft profile - mimics Windows Update traffic */
 static const char *MS_GET_URIS[] = {
     "/v9/windowsupdate/redir/wuredir.cab",
     "/v9/windowsupdate/selfupdate/WSUS3.0/x64/UpdateServices.cab",
@@ -88,16 +79,10 @@ const malleable_profile_t PROFILE_MICROSOFT = {
     .append = "</Data>\n</soap:Body>\n</soap:Envelope>",
     .user_agent = "Windows-Update-Agent/10.0.19041.1 Client-Protocol/1.40"};
 
-/* ============================================================================
- * État global
- * ============================================================================
- */
+/* Global state */
 static const malleable_profile_t *g_active_profile = &PROFILE_DEFAULT;
 
-/* ============================================================================
- * Implémentation
- * ============================================================================
- */
+/* Implementation */
 
 const malleable_profile_t *profile_get_active(void) { return g_active_profile; }
 

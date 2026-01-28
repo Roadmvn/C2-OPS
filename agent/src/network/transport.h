@@ -10,10 +10,7 @@
 #include "../../include/common.h"
 #include "../core/config.h"
 
-/* ============================================================================
- * Contexte de transport
- * ============================================================================
- */
+/* Transport context */
 typedef struct {
   HINTERNET session;    /* Handle de session WinHTTP */
   HINTERNET connection; /* Handle de connexion */
@@ -24,10 +21,7 @@ typedef struct {
   bool initialized;     /* Initialisé ? */
 } transport_ctx_t;
 
-/* ============================================================================
- * Prototypes
- * ============================================================================
- */
+/* Prototypes */
 
 /*
  * Initialise le transport.

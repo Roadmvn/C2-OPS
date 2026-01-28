@@ -54,10 +54,7 @@ static const char *SUSPICIOUS_COMPUTER_NAMES[] = {
     "DESKTOP-", /* Suivi de peu de caractères = VM auto-générée */
     NULL};
 
-/* ============================================================================
- * Implémentation
- * ============================================================================
- */
+/* Detection functions */
 
 bool check_cpu_count(void) {
   SYSTEM_INFO si;

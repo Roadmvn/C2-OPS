@@ -22,11 +22,7 @@ int syscalls_init(void);
  */
 void syscalls_cleanup(void);
 
-/* ============================================================================
- * Wrappers de syscalls
- * Ces fonctions font des appels système directs sans passer par ntdll
- * ============================================================================
- */
+/* Syscall wrappers - direct system calls bypassing ntdll */
 
 /*
  * NtAllocateVirtualMemory - Alloue de la mémoire

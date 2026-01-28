@@ -20,10 +20,7 @@ static bool g_sleep_initialized = false;
 static uint8_t g_sleep_key[32];
 static uint8_t g_sleep_iv[16];
 
-/* ============================================================================
- * Fonctions internes
- * ============================================================================
- */
+/* Internal helpers */
 
 /*
  * Génère une clé aléatoire pour ce sleep.
@@ -63,10 +60,7 @@ static bool get_image_boundaries(void **base, size_t *size) {
   return true;
 }
 
-/* ============================================================================
- * Implémentation des fonctions publiques
- * ============================================================================
- */
+/* Public API */
 
 int sleep_init(void) {
   if (g_sleep_initialized) {
