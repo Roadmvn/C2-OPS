@@ -77,7 +77,7 @@ BOOL Evasion_DisableCLRETW(void);
  * API Principale
  * ========================================================================= */
 
-/* Applique toutes les techniques d'évasion */
+/* Applique toutes les techniques d'évasion (ETW + AMSI + Unhook) */
 BOOL Evasion_FullBypass(void);
 
 /* Retourne l'état des protections */
