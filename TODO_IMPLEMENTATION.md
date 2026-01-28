@@ -1,8 +1,8 @@
-# Ghost C2 - Implementation Status
+# Ghost C2 - État de l'implémentation
 
-> Last updated: Jan 2026
+> Dernière mise à jour: Jan 2026
 
-## Current State
+## État actuel
 
 | Module | Agent (C) | Server (Go) | Status |
 |--------|-----------|-------------|--------|
@@ -24,7 +24,7 @@
 
 ---
 
-## Incomplete - To Fix
+## Incomplet - À corriger
 
 ### Browser Credentials (browser.c)
 
@@ -85,7 +85,7 @@ TODO:
 
 ---
 
-## Not Started
+## Pas encore commencé
 
 ### Advanced Injection
 
@@ -114,7 +114,7 @@ TODO:
 
 ---
 
-## Technical Notes
+## Notes techniques
 
 ### Chrome v80+ Password Decryption
 
@@ -161,7 +161,7 @@ OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken);
 
 ---
 
-## File Structure
+## Structure des fichiers
 
 ```
 agent/src/
