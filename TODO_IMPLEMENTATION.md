@@ -28,18 +28,18 @@
 
 ### Browser Credentials (browser.c)
 
-Done:
-- Chrome Login Data path detection
-- DPAPI decryption structure
-- Basic JSON parsing
-- [x] BCrypt AES-GCM decryption for Chrome v80+ passwords
-- [x] Raw SQLite parsing (heuristic blob detection)
-- [x] Firefox profile detection (profiles.ini)
-- [x] Firefox logins.json parsing
-- [x] Browser_GetAllCredentials() combined function
+Fait:
+- Détection du chemin Chrome Login Data
+- Structure de déchiffrement DPAPI
+- Parsing JSON basique
+- [x] Déchiffrement BCrypt AES-GCM pour Chrome v80+
+- [x] Parsing SQLite heuristique
+- [x] Détection profils Firefox (profiles.ini)
+- [x] Parsing logins.json Firefox
+- [x] Fonction combinée Browser_GetAllCredentials()
 
-TODO:
-- [ ] NSS library integration for Firefox decryption (currently returns encrypted values)
+À faire:
+- [ ] Intégration librairie NSS pour Firefox (retourne actuellement les valeurs chiffrées)
 
 ### File Exfiltration (exfil.c)
 
