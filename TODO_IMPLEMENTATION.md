@@ -105,22 +105,25 @@ Fait:
 
 ---
 
+## Implémenté - Persistence avancée (persist.c)
+
+- [x] COM Hijacking (persist_com_hijack_add/remove)
+- [x] WMI Event Subscription (persist_wmi_add/remove)
+- [x] AppInit_DLLs (persist_appinit_add/remove)
+- [x] Image File Execution Options (persist_ifeo_add/remove)
+
+## Implémenté - Injection avancée (injection.c)
+
+- [x] Reflective DLL Loading (Injection_ReflectiveLoadDLL)
+- [x] Export resolution for reflective DLLs
+- [x] Remote reflective injection
+
 ## Pas encore commencé
 
-### Advanced Persistence
-
-- [ ] COM Hijacking
-- [ ] WMI Event Subscription
-- [ ] Scheduled Task via COM API
-- [ ] AppInit_DLLs
-- [ ] Image File Execution Options
-
-### Autres
-
-- [ ] Reflective DLL loading
 - [ ] Module stomping
 - [ ] ROP chain avec NtContinue
 - [ ] Stack spoofing
+- [ ] Scheduled Task via COM API (alternative à wmic)
 
 ---
 
