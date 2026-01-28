@@ -11,7 +11,7 @@
 | Network | transport.c, profile.c | http.go, manager.go | Done |
 | Sessions | - | agent.go, manager.go | Done |
 | Tasks | dispatcher.c + handlers | queue.go | Done |
-| Evasion | antidebug.c, sandbox.c, sleep.c, syscalls.c | - | Done |
+| Evasion | antidebug.c, sandbox.c, sleep.c, syscalls.c, injection.c | - | Done |
 | API | - | router.go | Done |
 | CLI | - | console.go | Done |
 | Surveillance | screenshot.c, keylogger.c, clipboard.c, webcam.c, microphone.c | handlers/*.go | Done |
@@ -56,15 +56,16 @@ TODO:
 
 ### Authentication (auth.c)
 
-Done:
+Fait:
 - Build key structure
 - Agent ID generation (hardware-based)
 - HMAC-SHA256 challenge-response
+- [x] Kill switch (Auth_ActivateKillSwitch, Auth_IsKilled)
+- [x] Heartbeat system (Auth_GenerateHeartbeat, Auth_ValidateServerResponse)
+- [x] Server response validation avec blacklist check
 
-TODO:
-- [ ] Server-side validation endpoint
-- [ ] Kill switch implementation (revoke agent by ID)
-- [ ] Agent blacklist/whitelist
+À faire:
+- [ ] Server-side validation endpoint (Go)
 
 ### Vulnerability Scanner (scanner.c)
 
@@ -80,19 +81,31 @@ Done:
 - [x] Cleartext credentials in registry (Autologon, VNC, PuTTY)
 - [x] Combined privesc scan function
 
-TODO:
-- [ ] Weak file permissions check (writable service binaries)
+Fait:
+- [x] Weak file permissions check (Scanner_CheckWeakPermissions)
+- [x] Writable PATH directories check (Scanner_CheckWritablePath)
+
+---
+
+## Implémenté récemment
+
+### Advanced Injection (injection.c)
+
+- [x] Process Hollowing (Injection_ProcessHollowing)
+- [x] APC Injection (Injection_APC)
+- [x] Early Bird APC (Injection_EarlyBirdAPC)
+- [x] Process finder + injectable list
+
+### Sleep Obfuscation (sleep.c)
+
+- [x] Heap encryption during sleep (RC4 via SystemFunction032)
+- [x] XOR fallback encryption
+- [x] Sleep with jitter (sleep_with_jitter)
+- [x] Region enumeration + protection handling
 
 ---
 
 ## Pas encore commencé
-
-### Advanced Injection
-
-- [ ] Process Hollowing
-- [ ] APC Injection
-- [ ] Reflective DLL loading
-- [ ] Module stomping
 
 ### Advanced Persistence
 
@@ -102,14 +115,11 @@ TODO:
 - [ ] AppInit_DLLs
 - [ ] Image File Execution Options
 
-### Sleep Obfuscation (full)
+### Autres
 
-Current: basic NtDelayExecution
-
-TODO:
-- [ ] Heap encryption during sleep
-- [ ] ROP chain with NtContinue
-- [ ] Timer-based callback
+- [ ] Reflective DLL loading
+- [ ] Module stomping
+- [ ] ROP chain avec NtContinue
 - [ ] Stack spoofing
 
 ---
