@@ -87,6 +87,7 @@ NTSTATUS sys_NtOpenProcess(PHANDLE ProcessHandle, ACCESS_MASK DesiredAccess,
 /* =========================================================================
  * Direct Syscalls (x64 uniquement)
  * Bypass complet des hooks EDR via syscalls manuels
+ * Technique Halo's Gate: déduit les SSN depuis les fonctions voisines
  * ========================================================================= */
 
 /*
