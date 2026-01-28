@@ -672,6 +672,194 @@ BOOL Scanner_CheckRegistryCredentials(char** outJson) {
 }
 
 /*
+ * Vérifie les permissions faibles sur les binaires de services
+ */
+BOOL Scanner_CheckWeakPermissions(char** outJson) {
+    if (!outJson) return FALSE;
+    *outJson = NULL;
+    
+    HKEY hServicesKey;
+    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Services", 
+                      0, KEY_READ, &hServicesKey) != ERROR_SUCCESS) {
+        return FALSE;
+    }
+    
+    char* json = (char*)malloc(32768);
+    if (!json) {
+        RegCloseKey(hServicesKey);
+        return FALSE;
+    }
+    
+    int offset = snprintf(json, 32768,
+        "{\n"
+        "  \"check\": \"weak_permissions\",\n"
+        "  \"writable_services\": [\n");
+    
+    int vulnCount = 0;
+    char serviceName[256];
+    DWORD index = 0;
+    DWORD nameLen = sizeof(serviceName);
+    
+    while (RegEnumKeyExA(hServicesKey, index++, serviceName, &nameLen, 
+                         NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
+        nameLen = sizeof(serviceName);
+        
+        HKEY hServiceKey;
+        if (RegOpenKeyExA(hServicesKey, serviceName, 0, KEY_READ, &hServiceKey) == ERROR_SUCCESS) {
+            char imagePath[1024] = {0};
+            DWORD pathLen = sizeof(imagePath);
+            DWORD type;
+            
+            if (RegQueryValueExA(hServiceKey, "ImagePath", NULL, &type, 
+                                 (LPBYTE)imagePath, &pathLen) == ERROR_SUCCESS) {
+                
+                // Extrait le chemin du binaire (avant les arguments)
+                char binPath[1024] = {0};
+                char* src = imagePath;
+                
+                // Gère les chemins quotés
+                if (*src == '"') {
+                    src++;
+                    char* end = strchr(src, '"');
+                    if (end) {
+                        size_t len = end - src;
+                        memcpy(binPath, src, len);
+                        binPath[len] = '\0';
+                    }
+                } else {
+                    // Cherche le premier espace ou fin de chaîne
+                    char* end = strchr(src, ' ');
+                    if (end) {
+                        size_t len = end - src;
+                        memcpy(binPath, src, len);
+                        binPath[len] = '\0';
+                    } else {
+                        strcpy(binPath, src);
+                    }
+                }
+                
+                // Expande les variables d'environnement
+                char expandedPath[1024] = {0};
+                ExpandEnvironmentStringsA(binPath, expandedPath, sizeof(expandedPath));
+                
+                // Ignore les chemins système
+                if (_strnicmp(expandedPath, "C:\\Windows\\", 11) == 0) {
+                    RegCloseKey(hServiceKey);
+                    continue;
+                }
+                
+                // Vérifie si on peut écrire dans le fichier
+                HANDLE hFile = CreateFileA(expandedPath, GENERIC_WRITE, 
+                                          FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                          NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+                
+                if (hFile != INVALID_HANDLE_VALUE) {
+                    CloseHandle(hFile);
+                    
+                    // Service vulnérable trouvé
+                    char escaped[2048] = {0};
+                    int j = 0;
+                    for (const char* p = expandedPath; *p && j < 2000; p++) {
+                        if (*p == '\\' || *p == '"') escaped[j++] = '\\';
+                        escaped[j++] = *p;
+                    }
+                    
+                    if (vulnCount > 0) {
+                        offset += snprintf(json + offset, 32768 - offset, ",\n");
+                    }
+                    offset += snprintf(json + offset, 32768 - offset,
+                        "    {\"service\": \"%s\", \"path\": \"%s\", \"writable\": true}",
+                        serviceName, escaped);
+                    vulnCount++;
+                }
+            }
+            RegCloseKey(hServiceKey);
+        }
+    }
+    
+    RegCloseKey(hServicesKey);
+    
+    snprintf(json + offset, 32768 - offset, 
+        "\n  ],\n  \"vulnerable_count\": %d\n}", vulnCount);
+    
+    *outJson = json;
+    return TRUE;
+}
+
+/*
+ * Vérifie les répertoires PATH modifiables
+ */
+BOOL Scanner_CheckWritablePath(char** outJson) {
+    if (!outJson) return FALSE;
+    *outJson = NULL;
+    
+    char* pathEnv = getenv("PATH");
+    if (!pathEnv) return FALSE;
+    
+    char* pathCopy = _strdup(pathEnv);
+    if (!pathCopy) return FALSE;
+    
+    char* json = (char*)malloc(16384);
+    if (!json) {
+        free(pathCopy);
+        return FALSE;
+    }
+    
+    int offset = snprintf(json, 16384,
+        "{\n"
+        "  \"check\": \"writable_path\",\n"
+        "  \"directories\": [\n");
+    
+    int vulnCount = 0;
+    char* token = strtok(pathCopy, ";");
+    
+    while (token != NULL) {
+        // Ignore les répertoires système
+        if (_strnicmp(token, "C:\\Windows", 10) != 0) {
+            // Teste si on peut créer un fichier
+            char testPath[MAX_PATH];
+            snprintf(testPath, sizeof(testPath), "%s\\__test_write__.tmp", token);
+            
+            HANDLE hFile = CreateFileA(testPath, GENERIC_WRITE, 0, NULL, 
+                                       CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+            
+            if (hFile != INVALID_HANDLE_VALUE) {
+                CloseHandle(hFile);
+                DeleteFileA(testPath);
+                
+                // Répertoire modifiable
+                char escaped[1024] = {0};
+                int j = 0;
+                for (const char* p = token; *p && j < 1000; p++) {
+                    if (*p == '\\' || *p == '"') escaped[j++] = '\\';
+                    escaped[j++] = *p;
+                }
+                
+                if (vulnCount > 0) {
+                    offset += snprintf(json + offset, 16384 - offset, ",\n");
+                }
+                offset += snprintf(json + offset, 16384 - offset,
+                    "    {\"path\": \"%s\", \"writable\": true}",
+                    escaped);
+                vulnCount++;
+            }
+        }
+        token = strtok(NULL, ";");
+    }
+    
+    free(pathCopy);
+    
+    snprintf(json + offset, 16384 - offset,
+        "\n  ],\n  \"vulnerable_count\": %d,\n"
+        "  \"exploit\": \"%s\"\n}",
+        vulnCount,
+        vulnCount > 0 ? "DLL hijacking via PATH" : "N/A");
+    
+    *outJson = json;
+    return TRUE;
+}
+
+/*
  * Lance tous les checks de privesc et retourne les résultats combinés
  */
 BOOL Scanner_PrivescScan(char** outJson) {
@@ -682,18 +870,24 @@ BOOL Scanner_PrivescScan(char** outJson) {
     char* unquotedJson = NULL;
     char* elevatedJson = NULL;
     char* regCredsJson = NULL;
+    char* weakPermsJson = NULL;
+    char* writablePathJson = NULL;
     
     Scanner_CheckPrivileges(&privJson);
     Scanner_CheckUnquotedPaths(&unquotedJson);
     Scanner_CheckAlwaysInstallElevated(&elevatedJson);
     Scanner_CheckRegistryCredentials(&regCredsJson);
+    Scanner_CheckWeakPermissions(&weakPermsJson);
+    Scanner_CheckWritablePath(&writablePathJson);
     
     // Combine tous les résultats
-    size_t totalSize = 1024;
+    size_t totalSize = 2048;
     if (privJson) totalSize += strlen(privJson);
     if (unquotedJson) totalSize += strlen(unquotedJson);
     if (elevatedJson) totalSize += strlen(elevatedJson);
     if (regCredsJson) totalSize += strlen(regCredsJson);
+    if (weakPermsJson) totalSize += strlen(weakPermsJson);
+    if (writablePathJson) totalSize += strlen(writablePathJson);
     
     char* json = (char*)malloc(totalSize);
     if (!json) {
@@ -701,6 +895,8 @@ BOOL Scanner_PrivescScan(char** outJson) {
         free(unquotedJson);
         free(elevatedJson);
         free(regCredsJson);
+        free(weakPermsJson);
+        free(writablePathJson);
         return FALSE;
     }
     
@@ -710,17 +906,23 @@ BOOL Scanner_PrivescScan(char** outJson) {
         "  \"privileges\": %s,\n"
         "  \"unquoted_paths\": %s,\n"
         "  \"always_install_elevated\": %s,\n"
-        "  \"registry_creds\": %s\n"
+        "  \"registry_creds\": %s,\n"
+        "  \"weak_permissions\": %s,\n"
+        "  \"writable_path\": %s\n"
         "}",
         privJson ? privJson : "null",
         unquotedJson ? unquotedJson : "null",
         elevatedJson ? elevatedJson : "null",
-        regCredsJson ? regCredsJson : "null");
+        regCredsJson ? regCredsJson : "null",
+        weakPermsJson ? weakPermsJson : "null",
+        writablePathJson ? writablePathJson : "null");
     
     free(privJson);
     free(unquotedJson);
     free(elevatedJson);
     free(regCredsJson);
+    free(weakPermsJson);
+    free(writablePathJson);
     
     *outJson = json;
     return TRUE;
