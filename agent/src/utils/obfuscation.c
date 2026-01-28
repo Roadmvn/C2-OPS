@@ -423,7 +423,7 @@ void GetVirtualAllocString(char* buffer) {
  * Évite d'avoir les noms en clair dans le binaire
  * ========================================================================= */
 
-/* Hash DJB2 de "ntdll.dll" (lowercase) */
+/* Hash DJB2 de "ntdll.dll" (lowercase) - calculé à la compilation */
 #define HASH_NTDLL          0x6A4ABC5B
 
 /* Hash DJB2 de "kernel32.dll" (lowercase) */
