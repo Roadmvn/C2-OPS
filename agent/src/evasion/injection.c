@@ -1454,6 +1454,7 @@ BOOL Injection_ListThreads(DWORD targetPid, char** outJson) {
  * Callback-based Execution
  * Exécute du code via des callbacks Windows légitimes
  * Plus discret car utilise des mécanismes système normaux
+ * Référence: https://github.com/aahmad097/AlternativeShellcodeExec
  * ========================================================================= */
 
 /*
@@ -1668,6 +1669,7 @@ BOOL Injection_CopyFileCallback(BYTE* shellcode, DWORD shellcodeSize) {
  * Fiber-based Injection
  * Utilise les fibers Windows pour exécuter du code
  * Les fibers sont des threads légers gérés en user-mode
+ * Avantage: pas de création de thread visible par l'EDR
  * ========================================================================= */
 
 /*
