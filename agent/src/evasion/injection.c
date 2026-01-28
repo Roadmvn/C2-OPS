@@ -1119,6 +1119,7 @@ PVOID Injection_CallWithSpoofedStack(PVOID function, PVOID arg1, PVOID arg2,
 /* =========================================================================
  * Thread Execution Hijacking
  * Détourne un thread existant pour exécuter notre code
+ * Plus discret que CreateRemoteThread car réutilise un thread légitime
  * ========================================================================= */
 
 /* Typedefs pour les fonctions NT */
