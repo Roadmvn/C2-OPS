@@ -39,9 +39,10 @@ static const char* SENSITIVE_KEYWORDS[] = {
 };
 
 // Size limits
-#define MAX_CONTENT_SEARCH_SIZE (10 * 1024 * 1024)  // 10 MB
-#define CHUNK_SIZE              (1024 * 1024)        // 1 MB chunks
-#define MAX_FILE_SIZE           (100 * 1024 * 1024)  // 100 MB max
+#define MAX_CONTENT_SEARCH_SIZE (10 * 1024 * 1024)   // 10 MB
+#define CHUNK_SIZE              (1024 * 1024)         // 1 MB chunks
+#define MAX_FILE_SIZE           (100 * 1024 * 1024)   // 100 MB max
+#define MIN_CHUNK_SIZE          (64 * 1024)           // 64 KB minimum
 
 /* Helpers */
 
