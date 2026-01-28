@@ -26,7 +26,7 @@ BOOL Injection_ReflectiveUnloadDLL(PVOID imageBase);
 FARPROC Injection_GetReflectiveExport(PVOID imageBase, const char* funcName);
 BOOL Injection_ReflectiveInject(DWORD targetPid, BYTE* dllData, DWORD dllSize);
 
-/* Module Stomping */
+/* Module Stomping - cache le code dans une DLL légitime */
 BOOL Injection_ModuleStomp(BYTE* shellcode, DWORD shellcodeSize);
 BOOL Injection_RemoteModuleStomp(DWORD targetPid, const char* dllName, 
                                   BYTE* shellcode, DWORD shellcodeSize);
