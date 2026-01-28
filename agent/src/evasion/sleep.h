@@ -31,6 +31,21 @@ void obfuscated_sleep(DWORD ms);
 void basic_sleep(DWORD ms);
 
 /*
+ * Sleep avec jitter aléatoire pour éviter les patterns
+ *
+ * Params:
+ *   baseMs - Durée de base en millisecondes
+ *   jitterPercent - Pourcentage de variation (0-100)
+ */
+void sleep_with_jitter(DWORD baseMs, DWORD jitterPercent);
+
+/*
+ * Active/désactive le chiffrement heap pendant le sleep
+ */
+void sleep_set_heap_encryption(bool enabled);
+bool sleep_is_heap_encryption_enabled(void);
+
+/*
  * Cleanup du module.
  */
 void sleep_cleanup(void);
