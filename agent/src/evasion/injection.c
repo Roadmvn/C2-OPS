@@ -2,9 +2,9 @@
  * injection.c - Techniques d'injection de code
  *
  * Implémente plusieurs méthodes d'injection :
- * - Process Hollowing
- * - APC Injection
- * - Early Bird APC
+ * - Process Hollowing (suspend + unmap + write + resume)
+ * - APC Injection (queue apc on existing thread)
+ * - Early Bird APC (apc on suspended process main thread)
  */
 
 #define WIN32_LEAN_AND_MEAN
