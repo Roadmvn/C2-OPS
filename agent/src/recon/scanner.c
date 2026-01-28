@@ -19,10 +19,10 @@
 
 #include "../../include/common.h"
 
-/* Config */
+/* Configuration */
 
-#define SCAN_TIMEOUT_MS     2000
-#define MAX_SCAN_RESULTS    256
+#define SCAN_TIMEOUT_MS      2000
+#define MAX_SCAN_RESULTS     256
 #define PRIVESC_MAX_SERVICES 512
 
 /* Ports communs à scanner */
