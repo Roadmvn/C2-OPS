@@ -57,7 +57,7 @@ typedef struct {
     BOOL substituteInstructions;/* Substituer les instructions */
 } POLY_OPTIONS;
 
-/* Génère une version polymorphique */
+/* Génère une version polymorphique (fonction principale) */
 BOOL Poly_Generate(BYTE* shellcode, DWORD shellcodeSize,
                    POLY_OPTIONS* options, BYTE** outResult, DWORD* outSize);
 
