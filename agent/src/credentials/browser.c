@@ -19,6 +19,7 @@
 
 #define SQLITE_HEADER "SQLite format 3"
 #define MAX_CREDENTIALS 256
+#define CHROME_KEY_PREFIX "DPAPI"
 
 /* Helpers */
 
