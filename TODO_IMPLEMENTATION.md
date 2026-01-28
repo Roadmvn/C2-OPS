@@ -1,283 +1,212 @@
-# Ghost C2 - TODO Implementation
+# Ghost C2 - Implementation Status
 
-## État actuel vs Objectifs
+## Current State
 
-### ✅ Déjà implémenté
-
-| Module | Agent (C) | Server (Go) |
-|--------|-----------|-------------|
-| Core | ✅ demon.c, config.c | ✅ main.go |
-| Crypto | ✅ aes.c, xor.c, base64.c | ✅ aes.go |
-| Network | ✅ transport.c, profile.c | ✅ http.go, manager.go |
-| Sessions | - | ✅ agent.go, manager.go |
-| Tasks | ✅ shell, file, process, recon, token, persist | ✅ queue.go |
-| Evasion | ✅ antidebug.c, sandbox.c, sleep.c, syscalls.c | - |
-| API | - | ✅ router.go |
-| CLI | - | ✅ console.go |
-
----
-
-## 🔴 À implémenter - Priorité Haute
-
-### 1. Keylogger
-- [ ] Hook clavier (SetWindowsHookEx ou GetAsyncKeyState)
-- [ ] Capture fenêtre active
-- [ ] Buffer et envoi périodique au C2
-- [ ] Chiffrement des logs
-
-### 2. Screenshot
-- [ ] Capture écran complet (BitBlt)
-- [ ] Capture fenêtre spécifique
-- [ ] Compression (JPEG/PNG)
-- [ ] Envoi chunked au C2
-
-### 3. Webcam (sans LED si possible)
-- [ ] Capture via DirectShow/Media Foundation
-- [ ] Désactivation LED (driver-level, complexe)
-- [ ] Stream ou snapshot
-- [ ] Compression vidéo
-
-> ⚠️ **Note sur le LED**: La plupart des webcams ont le LED câblé en hardware.
-> Désactiver le LED nécessite un driver custom ou exploitation firmware.
-> Certaines webcams low-cost ont le LED en software (contrôlable).
-
-### 4. Remote Desktop (VNC-like)
-- [ ] Capture écran continue
-- [ ] Envoi des frames (différentiel pour économiser bande passante)
-- [ ] Réception des inputs (souris, clavier)
-- [ ] Injection des inputs (SendInput API)
-- [ ] Compression + chiffrement
-
-### 5. Microphone
-- [ ] Capture audio (WASAPI)
-- [ ] Compression audio
-- [ ] Stream ou enregistrement
+| Module | Agent (C) | Server (Go) | Status |
+|--------|-----------|-------------|--------|
+| Core | demon.c, config.c, auth.c | main.go | Done |
+| Crypto | aes.c, xor.c, base64.c | aes.go | Done |
+| Network | transport.c, profile.c | http.go, manager.go | Done |
+| Sessions | - | agent.go, manager.go | Done |
+| Tasks | dispatcher.c + handlers | queue.go | Done |
+| Evasion | antidebug.c, sandbox.c, sleep.c, syscalls.c | - | Done |
+| API | - | router.go | Done |
+| CLI | - | console.go | Done |
+| Surveillance | screenshot.c, keylogger.c, clipboard.c, webcam.c, microphone.c | handlers/*.go | Done |
+| Remote Desktop | desktop.c | remote.go | Done |
+| Credentials | browser.c, lsass.c | credentials.go | Partial |
+| Exfiltration | exfil.c | - | Partial |
+| Network Tools | socks5.c, portfwd.c | - | Done |
+| Scanner | scanner.c | - | Done |
+| Self-Destruct | destruct.c | - | Done |
 
 ---
 
-## 🟠 À implémenter - Priorité Moyenne
+## Remaining Work
 
-### 6. Authentification Agent
-- [ ] Build Key unique par compilation
-- [ ] Agent ID généré au premier lancement
-- [ ] Challenge-Response (HMAC)
-- [ ] Validation côté serveur
-- [ ] Kill switch (révocation)
+### Browser Credentials
 
-### 7. Clipboard Monitor
-- [ ] Surveillance continue du presse-papier
-- [ ] Capture texte et images
-- [ ] Détection mots de passe copiés
+Done:
+- Chrome Login Data path detection
+- Basic structure
 
-### 8. Browser Credentials
-- [ ] Chrome passwords (SQLite + DPAPI)
-- [ ] Firefox passwords (NSS)
-- [ ] Chrome cookies
-- [ ] Historique de navigation
+TODO:
+- SQLite parsing for Chrome Login Data
+- BCrypt AES-GCM decryption for Chrome v80+ passwords
+- Firefox profile detection (profiles.ini)
+- Firefox logins.json parsing
+- NSS library integration for Firefox decryption
 
-### 9. Credential Dumping
-- [ ] LSASS dump (MiniDumpWriteDump)
-- [ ] SAM/SYSTEM extraction
-- [ ] Registry credentials (autologon, VNC, PuTTY)
+### LSASS Dump
 
-### 10. File Exfiltration
-- [ ] Recherche par extension (.docx, .pdf, .kdbx)
-- [ ] Recherche par mot-clé (password, secret)
-- [ ] Envoi chunked
-- [ ] Compression avant envoi
+Done:
+- Process enumeration
+- MiniDumpWriteDump structure
+
+TODO:
+- Full dump functionality with privilege checks
+- Silent dump techniques
+
+### File Exfiltration
+
+Done:
+- Extension-based search
+- Keyword-based search
+- Recursive directory scanning
+
+TODO:
+- Chunked upload for large files
+- Compression before upload
+
+### Authentication
+
+Done:
+- Build key structure
+- Agent ID generation
+- HMAC challenge-response structure
+
+TODO:
+- Full server-side validation
+- Kill switch implementation
+- Agent revocation
+
+### Vulnerability Scanner
+
+Done:
+- Port scanning (TCP connect)
+- Service fingerprinting
+- Common ports detection
+
+TODO:
+- SeImpersonatePrivilege check
+- Unquoted service paths detection
+- AlwaysInstallElevated check
+- Cleartext credentials in registry
+
+### Advanced Injection (not started)
+
+- Process Hollowing
+- APC Injection
+- Reflective DLL loading
+
+### Advanced Persistence (not started)
+
+- COM Hijacking
+- WMI Event Subscription
+- Scheduled Task via COM API
 
 ---
 
-## 🟡 À implémenter - Priorité Basse
+## Technical Notes
 
-### 11. SOCKS Proxy
-- [ ] SOCKS5 server côté opérateur
-- [ ] Tunnel via agent
-- [ ] Accès au réseau interne
+### Chrome v80+ Password Decryption
 
-### 12. Port Forward
-- [ ] Forward local → distant
-- [ ] Forward distant → local
+Chrome uses AES-GCM encryption since v80:
 
-### 13. Scan Vulnérabilités
-- [ ] Check SeImpersonatePrivilege
-- [ ] Check unquoted service paths
-- [ ] Check AlwaysInstallElevated
-- [ ] Check credentials en clair
-- [ ] Rapport automatique au dashboard
+1. Read `Local State` file for encrypted master key
+2. Decrypt master key using DPAPI
+3. For each password in `Login Data`:
+   - Extract IV (bytes 3-15)
+   - Extract ciphertext (bytes 15 to -16)
+   - Extract auth tag (last 16 bytes)
+   - Decrypt with AES-GCM using master key
 
-### 14. Injection Avancée
-- [ ] Process Hollowing
-- [ ] APC Injection
-- [ ] Reflective DLL loading
+### LSASS Dump
 
-### 15. Persistence Avancée
-- [ ] COM Hijacking
-- [ ] WMI Event Subscription
-- [ ] Scheduled Task via COM API
-
----
-
-## 📋 Détails techniques
-
-### Remote Desktop - Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                       REMOTE DESKTOP                        │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  AGENT                              SERVEUR                  │
-│  ─────                              ───────                  │
-│  1. Capture écran (30 fps)          1. Reçoit frames        │
-│  2. Compare avec frame précédente   2. Décode              │
-│  3. Encode diff (RLE ou JPEG)       3. Affiche             │
-│  4. Chiffre + envoie                                        │
-│                                                              │
-│  5. Reçoit events input             4. Capture mouse/kb    │
-│  6. SendInput() pour injecter       5. Envoie events       │
-│                                                              │
-│  Optimisations:                                             │
-│  - Diviser écran en tiles (16x16)                          │
-│  - N'envoyer que les tiles modifiées                       │
-│  - Compression JPEG qualité variable                        │
-│  - WebSocket pour latence faible                            │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Webcam - Approches pour le LED
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      WEBCAM SANS LED                        │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  MÉTHODE 1: Software-controlled LED (rare)                  │
-│  - Certaines webcams permettent de contrôler le LED         │
-│  - Vendor-specific API                                      │
-│                                                              │
-│  MÉTHODE 2: Driver hook                                     │
-│  - Intercepter les appels au driver                         │
-│  - Bloquer l'activation du LED                              │
-│  - Nécessite kernel access                                  │
-│                                                              │
-│  MÉTHODE 3: Firmware modification                           │
-│  - Modifier le firmware de la webcam                        │
-│  - Très complexe, risqué                                    │
-│                                                              │
-│  RÉALITÉ:                                                   │
-│  - La plupart des webcams = LED câblé en hardware          │
-│  - Impossible à désactiver sans modification physique       │
-│  - Focus sur discrétion (capture rapide, pas de preview)   │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Screenshot - APIs Windows
-
+Standard:
 ```c
-// Capture écran
-HDC hdcScreen = GetDC(NULL);
-HDC hdcMem = CreateCompatibleDC(hdcScreen);
-HBITMAP hBitmap = CreateCompatibleBitmap(hdcScreen, width, height);
-SelectObject(hdcMem, hBitmap);
-BitBlt(hdcMem, 0, 0, width, height, hdcScreen, 0, 0, SRCCOPY);
-
-// Pour le remote desktop: utiliser DXGI pour de meilleures perfs
-// IDXGIOutputDuplication (Windows 8+)
+MiniDumpWriteDump(hProcess, pid, hFile, MiniDumpWithFullMemory, NULL, NULL, NULL);
 ```
 
-### Input Injection - Remote Control
+Alternatives:
+- NtReadVirtualMemory directly
+- Comsvcs.dll method
+- Custom minidump implementation
 
-```c
-// Injecter mouvement souris
-INPUT input = {0};
-input.type = INPUT_MOUSE;
-input.mi.dx = x * (65535 / screen_width);
-input.mi.dy = y * (65535 / screen_height);
-input.mi.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE;
-SendInput(1, &input, sizeof(INPUT));
+### Sleep Obfuscation (full implementation)
 
-// Injecter click
-input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-SendInput(1, &input, sizeof(INPUT));
-input.mi.dwFlags = MOUSEEVENTF_LEFTUP;
-SendInput(1, &input, sizeof(INPUT));
-
-// Injecter touche clavier
-input.type = INPUT_KEYBOARD;
-input.ki.wVk = VK_RETURN;
-SendInput(1, &input, sizeof(INPUT));
-```
+1. RtlCaptureContext to save context
+2. Timer callback:
+   - NtProtectVirtualMemory (RW)
+   - SystemFunction032 for encryption
+   - NtProtectVirtualMemory (RX)
+   - WaitForSingleObject
+   - Decrypt
+3. NtContinue to restore
 
 ---
 
-## 🎯 Ordre d'implémentation suggéré
+## File Structure
 
-### Phase 1 - Surveillance
-1. Screenshot ← Simple, très utile
-2. Keylogger ← Capture credentials
-3. Clipboard ← Passwords copiés
-
-### Phase 2 - Remote Access  
-4. Remote Desktop ← Contrôle total
-5. Webcam ← Surveillance
-6. Microphone ← Audio
-
-### Phase 3 - Credentials
-7. Browser credentials ← Chrome/Firefox
-8. LSASS dump ← Hashes
-9. File search ← Documents
-
-### Phase 4 - Infrastructure
-10. Auth agent ← Sécurité
-11. SOCKS proxy ← Tunneling
-12. Scan vulnérabilités ← Automatisation
-
----
-
-## 📁 Fichiers à créer
-
-### Agent (C)
 ```
-agent/src/
-├── surveillance/
-│   ├── keylogger.c
-│   ├── screenshot.c
-│   ├── clipboard.c
-│   ├── webcam.c
-│   └── microphone.c
-├── remote/
-│   ├── desktop.c      (capture + input)
-│   └── socks.c        (proxy)
+agent/
+├── include/
+│   ├── common.h
+│   ├── ntdefs.h
+│   ├── credentials/
+│   │   ├── browser.h
+│   │   └── lsass.h
+│   ├── exfil/
+│   │   └── exfil.h
+│   ├── network/
+│   │   ├── portfwd.h
+│   │   └── socks5.h
+│   ├── recon/
+│   │   └── scanner.h
+│   ├── remote/
+│   │   └── desktop.h
+│   └── surveillance/
+│       ├── clipboard.h
+│       ├── keylogger.h
+│       ├── microphone.h
+│       ├── screenshot.h
+│       └── webcam.h
+└── src/
+    ├── core/
+    │   ├── auth.c
+    │   ├── config.c
+    │   └── demon.c
 ├── credentials/
 │   ├── browser.c
-│   ├── lsass.c
-│   └── registry.c
-└── recon/
-    └── vulnscan.c
-```
-
-### Server (Go)
-```
-server/internal/
-├── auth/
-│   └── validator.go    (agent auth)
-├── handlers/
-│   ├── keylog.go
-│   ├── screenshot.go
-│   ├── remote.go       (desktop)
-│   └── credentials.go
-└── proxy/
-    └── socks.go
-```
-
-### Web UI (React)
-```
-web/src/pages/
-├── RemoteDesktop.jsx   (viewer + controls)
-├── Keylogger.jsx       (logs viewer)
-├── Screenshots.jsx     (gallery)
-└── Credentials.jsx     (table)
+    │   └── lsass.c
+    ├── crypto/
+    │   ├── aes.c
+    │   ├── base64.c
+    │   └── xor.c
+    ├── evasion/
+    │   ├── antidebug.c
+    │   ├── sandbox.c
+    │   ├── sleep.c
+    │   └── syscalls.c
+    ├── exfil/
+    │   └── exfil.c
+    ├── network/
+    │   ├── portfwd.c
+    │   ├── profile.c
+    │   ├── socks5.c
+    │   └── transport.c
+    ├── recon/
+    │   └── scanner.c
+    ├── remote/
+    │   └── desktop.c
+    ├── surveillance/
+    │   ├── clipboard.c
+    │   ├── keylogger.c
+    │   ├── microphone.c
+    │   ├── screenshot.c
+    │   └── webcam.c
+    ├── tasks/
+    │   ├── dispatcher.c
+    │   └── handlers/
+    │       ├── destruct.c
+    │       ├── file.c
+    │       ├── persist.c
+    │       ├── process.c
+    │       ├── recon.c
+    │       ├── shell.c
+    │       └── token.c
+    └── utils/
+        ├── memory.c
+        ├── peb.c
+        └── strings.c
 ```

