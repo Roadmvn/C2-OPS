@@ -34,7 +34,7 @@ DWORD API_HashString(const char* str);
 BOOL API_DumpHashes(char** outJson);
 
 /* =========================================================================
- * Hashes pré-calculés - Modules
+ * Hashes pré-calculés - Modules (DJB2 case-insensitive)
  * ========================================================================= */
 
 #define HASH_NTDLL          0x6A4ABC5B
