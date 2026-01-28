@@ -1,11 +1,17 @@
 /*
  * injection.h - Prototypes pour les techniques d'injection
+ *
+ * Techniques disponibles:
+ * - Process Hollowing
+ * - APC Injection (classique et Early Bird)
+ * - Reflective DLL Loading
  */
 
 #ifndef INJECTION_H
 #define INJECTION_H
 
 #include <windows.h>
+#include <tlhelp32.h>
 
 /* Process Hollowing */
 BOOL Injection_ProcessHollowing(const char* targetPath, BYTE* payload, DWORD payloadSize);
