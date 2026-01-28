@@ -3,6 +3,8 @@
  *
  * Crée des versions uniques du shellcode à chaque exécution
  * pour éviter la détection par signature
+ *
+ * Chaque appel à Poly_Generate() produit un résultat différent
  */
 
 #ifndef POLYMORPH_H
