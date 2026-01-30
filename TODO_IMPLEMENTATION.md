@@ -24,6 +24,34 @@
 
 ---
 
+## 🎯 Roadmap Prioritaire (Analyse Consolidée - 30 Jan 2026)
+
+| Priorité | Module | Objectif | Status |
+|----------|--------|----------|--------|
+| **P0** | `privesc.c` | Exploiter Unquoted Service Path, AlwaysInstallElevated | ✅ **Done** |
+| **P1** | `lateral.c` | SCM/PsExec, WMI, DCOM | 🔴 TODO |
+| **P2** | SMB Named Pipes | Transport P2P inter-agents | 🔴 TODO |
+| **P3** | DNS Tunneling | Transport TXT records | 🔴 TODO |
+| **P4** | Cloud Exfil | OneDrive/Google Drive API | 🔴 TODO |
+| **P5** | Firefox NSS, Compression | Finalisation modules existants | 🔴 TODO |
+
+### ✅ P0 Implémenté (30 Jan 2026)
+- `agent/src/privesc/privesc.h` - Headers avec 6 vulnérabilités types
+- `agent/src/privesc/privesc.c` - Implémentation complète (520+ lignes)
+  - `PrivEsc_ScanAll()` - Scan 5 types de vulns
+  - `PrivEsc_ExploitUnquotedPath()` - Exploit service path
+  - `PrivEsc_ExploitAlwaysInstallElevated()` - MSI abuse
+  - `PrivEsc_GetSystem()` - Token stealing (winlogon/lsass)
+  - `PrivEsc_HasSeImpersonate()` - Check privilèges
+  - `PrivEsc_PotatoGetSystem()` - Named pipe impersonation
+
+### Prochaine Action : Créer `agent/src/lateral/`
+1. `lateral.h` - Headers pour mouvement latéral
+2. `lateral.c` - SCM/PsExec, WMI, DCOM
+3. Intégrer avec token volé de privesc
+
+---
+
 ## Incomplet - À corriger
 
 ### Browser Credentials (browser.c)
@@ -171,31 +199,126 @@ Fait:
 - [x] Génération polymorphique complète
 - [x] Support x86 et x64
 
+## 🎯 Roadmap - Priorités
+
+### P0 - Quick Wins (1-2 jours chacun)
+
+| Feature | Status | Fichier | Notes |
+|---------|--------|---------|-------|
+| Server-side auth endpoint | [ ] | `server/internal/auth/` | Endpoint Go pour validation agent |
+| Compression zlib | [ ] | `agent/src/exfil/exfil.c` | ~50 lignes de code |
+| NSS Firefox integration | [ ] | `agent/src/credentials/browser.c` | Déchiffrement passwords Firefox |
+
+### P1 - Features Critiques (3-5 jours chacun)
+
+| Feature | Status | Impact | Complexité |
+|---------|--------|--------|------------|
+| DNS Exfiltration | [ ] | C2 over DNS, bypass firewalls restrictifs | Moyenne |
+| BOF Loader | [ ] | Charger des Beacon Object Files dynamiquement | Moyenne |
+| LDAP Recon | [ ] | AD enumeration sans PowerShell | Basse |
+| Named Pipes C2 | [ ] | C2 over SMB, mouvement latéral interne | Moyenne |
+
+### P2 - Différenciation (1-2 semaines)
+
+| Feature | Status | Impact | Complexité |
+|---------|--------|--------|------------|
+| In-memory .NET execution | [ ] | Execute-Assembly sans spawn CLR | Haute |
+| SMB Lateral Movement | [ ] | PSExec/WMIExec style | Moyenne |
+| Steganography Exfil | [ ] | Bypass DLP, ultra-furtif | Moyenne |
+| Cloud Exfil | [ ] | OneDrive/Dropbox/GDrive | Haute |
+
+---
+
 ## Prochaines étapes - Exfiltration avancée
 
 ### DNS Exfiltration
-- [ ] Encodage des données en sous-domaines DNS
+- [ ] Encodage des données en sous-domaines DNS (base32/base64)
 - [ ] Requêtes TXT/CNAME pour récupérer les données
 - [ ] Très discret - passe souvent inaperçu par les EDR
 - [ ] Lent mais fiable même dans les réseaux restrictifs
+- [ ] Implémenter: `agent/src/exfil/dns_exfil.c`
 
 ### Steganography
 - [ ] Cacher les données dans des images PNG/JPEG
 - [ ] LSB (Least Significant Bit) encoding
 - [ ] Les fichiers ressemblent à des images normales
 - [ ] Bypass DLP (Data Loss Prevention)
+- [ ] Implémenter: `agent/src/exfil/stego.c`
 
 ### Cloud Exfiltration
 - [ ] Upload vers services légitimes (OneDrive, Dropbox, Google Drive)
 - [ ] Utilise le trafic HTTPS normal
 - [ ] Difficile à bloquer sans casser la productivité
 - [ ] API ou WebDAV
+- [ ] Implémenter: `agent/src/exfil/cloud.c`
 
 ### Compression (optimisation)
 - [ ] Compression zlib/lz4 avant upload
 - [ ] Réduit la bande passante
 - [ ] Accélère les transferts
 - [ ] Moins de données = moins de temps d'exposition
+
+---
+
+## Prochaines étapes - C2 Multi-Protocol
+
+### Named Pipes (SMB)
+- [ ] C2 over SMB named pipes
+- [ ] Communication processus-to-processus locale
+- [ ] Pivot interne sans réseau
+- [ ] Implémenter: `agent/src/network/pipe.c`
+
+### BOF Loader
+- [ ] Parser le format COFF (.o)
+- [ ] Résoudre les symboles dynamiquement
+- [ ] Exécuter en mémoire sans créer de fichier
+- [ ] Compatible avec les BOFs Cobalt Strike
+- [ ] Implémenter: `agent/src/core/bof_loader.c`
+
+---
+
+## Prochaines étapes - Post-Exploitation
+
+### LDAP Recon (AD Enumeration)
+- [ ] Énumérer utilisateurs, groupes, OUs
+- [ ] Trouver les Domain Admins
+- [ ] Lister les GPOs
+- [ ] Détecter les chemins de privesc (ACLs)
+- [ ] Implémenter: `agent/src/recon/ldap.c`
+
+### Kerberos Attacks
+- [ ] Kerberoasting (SPN enumeration + TGS request)
+- [ ] AS-REP Roasting
+- [ ] Silver Ticket (si on a le hash)
+- [ ] Implémenter: `agent/src/credentials/kerberos.c`
+
+### In-Memory .NET Execution
+- [ ] Charger le CLR dynamiquement
+- [ ] Exécuter des assemblies .NET en mémoire
+- [ ] Bypass AMSI inline
+- [ ] Implémenter: `agent/src/core/execute_assembly.c`
+
+---
+
+## 🚀 Différenciateurs vs Concurrence
+
+| Feature | Cobalt Strike | Havoc | Sliver | Ghost C2 |
+|---------|--------------|-------|--------|----------|
+| Syscalls directs | Opt-in | ✅ | ❌ | ✅ |
+| Sleep obfuscation | ✅ | ✅ | ❌ | ✅ |
+| BOF Loader | ✅ | ✅ | ❌ | 🔲 TODO |
+| DNS C2 | ✅ | ❌ | ✅ | 🔲 TODO |
+| Polymorphisme | ❌ | ❌ | ❌ | ✅ |
+| Code source | ❌ Closed | ✅ | ✅ | ✅ |
+
+---
+
+## 📊 Métriques de progression
+
+- **Agent (C)**: ~90% complet
+- **Server (Go)**: ~85% complet
+- **Web UI (React)**: ~60% complet - Besoin d'amélioration UX
+- **Documentation**: ~70% complet
 
 ---
 

