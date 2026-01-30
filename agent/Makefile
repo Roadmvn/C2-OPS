@@ -73,7 +73,8 @@ CREDENTIALS_SRC = $(SRC_DIR)/credentials/browser.c \
                   $(SRC_DIR)/credentials/lsass.c
 
 EXFIL_SRC = $(SRC_DIR)/exfil/exfil.c \
-            $(SRC_DIR)/exfil/dns_exfil.c
+            $(SRC_DIR)/exfil/dns_exfil.c \
+            $(SRC_DIR)/exfil/cloud.c
 
 RECON_SRC = $(SRC_DIR)/recon/scanner.c
 
