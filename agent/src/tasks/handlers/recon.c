@@ -145,9 +145,54 @@ int handler_recon_ipconfig(char **output, size_t *len) {
     return STATUS_FAILURE;
   }
 
-  /*
-   * Pour l'instant, on utilise la commande ipconfig /all
-   * Une vraie implémentation utiliserait GetAdaptersAddresses()
-   */
-  return STATUS_FAILURE; /* TODO: implémenter */
+  // exec ipconfig et capture output
+  HANDLE hReadPipe, hWritePipe;
+  SECURITY_ATTRIBUTES sa = {sizeof(sa), NULL, TRUE};
+  
+  if (!CreatePipe(&hReadPipe, &hWritePipe, &sa, 0)) {
+    return STATUS_FAILURE;
+  }
+  
+  STARTUPINFOA si = {0};
+  PROCESS_INFORMATION pi = {0};
+  si.cb = sizeof(si);
+  si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+  si.hStdOutput = hWritePipe;
+  si.hStdError = hWritePipe;
+  si.wShowWindow = SW_HIDE;
+  
+  char cmd[] = "ipconfig /all";
+  if (!CreateProcessA(NULL, cmd, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+    CloseHandle(hReadPipe);
+    CloseHandle(hWritePipe);
+    return STATUS_FAILURE;
+  }
+  
+  CloseHandle(hWritePipe);
+  
+  // lire la sortie
+  char *buffer = (char*)malloc(8192);
+  if (!buffer) {
+    CloseHandle(hReadPipe);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    return STATUS_NO_MEMORY;
+  }
+  
+  DWORD total = 0, bytes_read;
+  while (ReadFile(hReadPipe, buffer + total, 8192 - total - 1, &bytes_read, NULL) && bytes_read > 0) {
+    total += bytes_read;
+    if (total >= 8191) break;
+  }
+  buffer[total] = '\0';
+  
+  CloseHandle(hReadPipe);
+  WaitForSingleObject(pi.hProcess, 3000);
+  CloseHandle(pi.hProcess);
+  CloseHandle(pi.hThread);
+  
+  *output = buffer;
+  *len = total;
+  
+  return STATUS_SUCCESS;
 }
