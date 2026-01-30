@@ -1,9 +1,6 @@
-/**
- * @file cloud.c
- * @brief Exfiltration Cloud - OneDrive, Dropbox, Google Drive
- * 
- * Upload vers services légitimes pour bypass firewall/DLP
- * Utilise les APIs REST via WinHTTP
+/*
+ * cloud.c - exfil vers cloud
+ * dropbox, onedrive, gdrive via REST
  */
 
 #include <windows.h>

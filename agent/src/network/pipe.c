@@ -1,12 +1,6 @@
-/**
- * @file pipe.c
- * @brief Transport SMB Named Pipes - C2 P2P inter-agents
- * 
- * Fonctionnalités:
- * - Serveur pipe pour recevoir des connexions
- * - Client pipe pour se connecter à d'autres agents
- * - Communication chiffrée (XOR ou AES)
- * - Pivot interne sans trafic réseau externe
+/*
+ * pipe.c - SMB named pipes transport
+ * p2p entre agents, pivot interne
  */
 
 #include <windows.h>

