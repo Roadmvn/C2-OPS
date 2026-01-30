@@ -1,6 +1,6 @@
 # Ghost C2 - État de l'implémentation
 
-> Dernière mise à jour: 30 Jan 2026 - v5 lateral
+> Dernière mise à jour: 30 Jan 2026 - v6 exfil complete
 
 ## État actuel
 
@@ -30,9 +30,9 @@
 |----------|--------|----------|--------|
 | **P0** | `privesc.c` | Exploiter Unquoted Service Path, AlwaysInstallElevated | ✅ **Done** |
 | **P1** | `lateral.c` | SCM/PsExec, WMI, DCOM | ✅ **Done** |
-| **P2** | SMB Named Pipes | Transport P2P inter-agents | 🔴 TODO |
-| **P3** | DNS Tunneling | Transport TXT records | 🔴 TODO |
-| **P4** | Cloud Exfil | OneDrive/Google Drive API | 🔴 TODO |
+| **P2** | SMB Named Pipes | Transport P2P inter-agents | ✅ **Done** |
+| **P3** | DNS Tunneling | Transport TXT records | ✅ **Done** |
+| **P4** | Cloud Exfil | OneDrive/Google Drive API | ✅ **Done** |
 | **P5** | Firefox NSS, Compression | Finalisation modules existants | 🔴 TODO |
 
 ### ✅ P0 Implémenté (30 Jan 2026)
@@ -54,6 +54,30 @@
   - `Lateral_DCOM_MMC20()` - MMC20.Application
   - `Lateral_SetPTHContext()` - Pass-the-Hash support
   - `Lateral_AutoExecute()` - Méthode optimale automatique
+
+### ✅ P2 Implémenté (30 Jan 2026)
+- `agent/src/network/pipe.c` - SMB Named Pipes P2P (550+ lignes)
+  - `Pipe_CreateServer()` - Serveur pipe local
+  - `Pipe_Connect()` - Client vers pipe distant
+  - `Pipe_SendMessage()` / `Pipe_RecvMessage()` - Protocole C2
+  - `Pipe_Relay()` - Pivoting entre réseaux
+  - Chiffrement XOR intégré
+
+### ✅ P3 Implémenté (30 Jan 2026)
+- `agent/src/exfil/dns_exfil.c` - DNS Tunneling (420+ lignes)
+  - `DNS_Exfil_Send()` - Encodage Base32 dans sous-domaines
+  - `DNS_Exfil_Recv()` - Réception via TXT records
+  - `DNS_Beacon()` - Heartbeat C2 over DNS
+  - `DNS_GetCommand()` / `DNS_SendResult()` - Protocole C2
+  - `DNS_ExfilFile()` - Exfiltration fichiers complète
+
+### ✅ P4 Implémenté (30 Jan 2026)
+- `agent/src/exfil/cloud.c` - Cloud Exfiltration (450+ lignes)
+  - `Cloud_Dropbox_Upload()` - Upload via Dropbox API
+  - `Cloud_OneDrive_Upload()` - Upload via Microsoft Graph
+  - `Cloud_GDrive_Upload()` - Upload via Google Drive API
+  - `Cloud_AutoUpload()` - Sélection automatique du service
+  - Support tokens OAuth2
 
 ---
 
