@@ -248,11 +248,22 @@ BOOL Lateral_WMI_Execute(
     wchar_t wuser[256] = {0}, wpass[256] = {0};
     BSTR bstr_user = NULL, bstr_pass = NULL;
     if (username) {
-        MultiByteToWideChar(CP_ACP, 0, username, -1, wuser, 256);
+        if (MultiByteToWideChar(CP_ACP, 0, username, -1, wuser, 256) == 0) {
+            result->error_code = GetLastError();
+            snprintf(result->message, sizeof(result->message), "invalid username encoding");
+            pLocator->lpVtbl->Release(pLocator);
+            return FALSE;
+        }
         bstr_user = SysAllocString(wuser);
     }
     if (password) {
-        MultiByteToWideChar(CP_ACP, 0, password, -1, wpass, 256);
+        if (MultiByteToWideChar(CP_ACP, 0, password, -1, wpass, 256) == 0) {
+            result->error_code = GetLastError();
+            snprintf(result->message, sizeof(result->message), "invalid password encoding");
+            if (bstr_user) SysFreeString(bstr_user);
+            pLocator->lpVtbl->Release(pLocator);
+            return FALSE;
+        }
         bstr_pass = SysAllocString(wpass);
     }
     
@@ -322,13 +333,16 @@ BOOL Lateral_WMI_Execute(
         goto cleanup;
     }
     
-    // Définir le paramètre CommandLine
     VARIANT var_cmd;
     VariantInit(&var_cmd);
     var_cmd.vt = VT_BSTR;
     
-    wchar_t wcmd[1024];
-    MultiByteToWideChar(CP_UTF8, 0, command, -1, wcmd, 1024);
+    wchar_t wcmd[1024] = {0};
+    if (MultiByteToWideChar(CP_UTF8, 0, command, -1, wcmd, 1024) == 0) {
+        result->error_code = GetLastError();
+        snprintf(result->message, sizeof(result->message), "invalid command encoding");
+        goto cleanup;
+    }
     var_cmd.bstrVal = SysAllocString(wcmd);
     
     BSTR bstr_cmdline = SysAllocString(L"CommandLine");
@@ -425,8 +439,12 @@ BOOL Lateral_DCOM_MMC20(
         return FALSE;
     }
     
-    wchar_t wtarget[256];
-    MultiByteToWideChar(CP_UTF8, 0, target_host, -1, wtarget, 256);
+    wchar_t wtarget[256] = {0};
+    if (MultiByteToWideChar(CP_UTF8, 0, target_host, -1, wtarget, 256) == 0) {
+        result->error_code = GetLastError();
+        snprintf(result->message, sizeof(result->message), "invalid target encoding");
+        return FALSE;
+    }
     server_info.pwszName = wtarget;
     
     mqi.pIID = &IID_IDispatch;
@@ -512,8 +530,15 @@ BOOL Lateral_DCOM_MMC20(
         VARIANT args[4];
         for (int i = 0; i < 4; i++) VariantInit(&args[i]);
         
-        wchar_t wcmd[512];
-        MultiByteToWideChar(CP_UTF8, 0, command, -1, wcmd, 512);
+        wchar_t wcmd[512] = {0};
+        if (MultiByteToWideChar(CP_UTF8, 0, command, -1, wcmd, 512) == 0) {
+            pView->lpVtbl->Release(pView);
+            pDoc->lpVtbl->Release(pDoc);
+            pMMC->lpVtbl->Release(pMMC);
+            result->error_code = GetLastError();
+            snprintf(result->message, sizeof(result->message), "invalid command encoding");
+            return FALSE;
+        }
         
         // reverse order pour COM
         args[3].vt = VT_BSTR;
