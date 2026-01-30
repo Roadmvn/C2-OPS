@@ -1,6 +1,6 @@
 # Ghost C2 - État de l'implémentation
 
-> Dernière mise à jour: 28 Jan 2026 - FINAL
+> Dernière mise à jour: 30 Jan 2026 - v5 lateral
 
 ## État actuel
 
@@ -29,7 +29,7 @@
 | Priorité | Module | Objectif | Status |
 |----------|--------|----------|--------|
 | **P0** | `privesc.c` | Exploiter Unquoted Service Path, AlwaysInstallElevated | ✅ **Done** |
-| **P1** | `lateral.c` | SCM/PsExec, WMI, DCOM | 🔴 TODO |
+| **P1** | `lateral.c` | SCM/PsExec, WMI, DCOM | ✅ **Done** |
 | **P2** | SMB Named Pipes | Transport P2P inter-agents | 🔴 TODO |
 | **P3** | DNS Tunneling | Transport TXT records | 🔴 TODO |
 | **P4** | Cloud Exfil | OneDrive/Google Drive API | 🔴 TODO |
@@ -45,10 +45,15 @@
   - `PrivEsc_HasSeImpersonate()` - Check privilèges
   - `PrivEsc_PotatoGetSystem()` - Named pipe impersonation
 
-### Prochaine Action : Créer `agent/src/lateral/`
-1. `lateral.h` - Headers pour mouvement latéral
-2. `lateral.c` - SCM/PsExec, WMI, DCOM
-3. Intégrer avec token volé de privesc
+### ✅ P1 Implémenté (30 Jan 2026)
+- `agent/src/lateral/lateral.h` - Headers mouvement latéral
+- `agent/src/lateral/lateral.c` - Implémentation complète (650+ lignes)
+  - `Lateral_SCM_CreateService()` - Service distant via SCM
+  - `Lateral_SCM_PsExec()` - Copie + exécution PsExec-like
+  - `Lateral_WMI_Execute()` - Win32_Process.Create
+  - `Lateral_DCOM_MMC20()` - MMC20.Application
+  - `Lateral_SetPTHContext()` - Pass-the-Hash support
+  - `Lateral_AutoExecute()` - Méthode optimale automatique
 
 ---
 
